@@ -2,6 +2,7 @@ import numpy as np
 from itertools import product
 
 # Factory settings
+#TODO: IMPORT FROM CSV
 
 L_min = 700  # Minimum panel length
 L_max = 3100  # Maximum panel length
@@ -46,10 +47,9 @@ def find_indexes_with_element(element):
     return indexes
 
 #Returns all possible non-dominated N_c given an i in I_c and a w in W
-def n_c_generator(_index, _w_max):
+def n_c_generator(I_c, _w_max):
 
-    items = powerset_at_index(_index)
-    widths = [item[0] for item in items]
+    widths = [item[0] for item in I_c]
 
     max_rows = [_w_max // _width for _width in widths]
 
@@ -75,7 +75,8 @@ def is_dominated(new_combo, valid_combinations):
     return False
 
 def remove_dominated(valid_combinations, new_combo):
-    return [combination for combination in valid_combinations if not all(new_combo[i] >= combination[i] for i in range(len(combination)))]
+    return [combination for combination in valid_combinations
+            if not all(new_combo[i] >= combination[i] for i in range(len(combination)))]
 
 
 # 3. Define potential stocks (J) of dimensions W * n_s_max
@@ -83,8 +84,8 @@ def remove_dominated(valid_combinations, new_combo):
 J = np.zeros((len(W), n_s_max))
 
 # 4. Define subsets of I compatible with stock size j (C_j)
-# Although referring to the J matrix, it only contains W values.
-# J[idx, _] --> C_j[idx]
+# Although referring to the J matrix, it only depends on W values.
+# J[idx, :] --> C_j[idx]
 C_j = [[] for _ in range(len(W))]
 
 for idx, width in enumerate(W):
@@ -95,9 +96,56 @@ for idx, width in enumerate(W):
         if total_width <= width:
             C_j[idx].append([index])
 
+#TODO FOREACH W, compute N_c
+# FOREACH N_c, compute lmin_cjk
+# get minimum
+def function_name(index):
+    for _width in W:
+        subset = powerset_at_index(index)
+        _demands = [item[2] for item in subset]
+        #lmin_{cjk}, size from kmax_cj and kmin_cj not yet defined
+        #In this arrays indexes equal k.
+        best_minimum_stock_size_length = np.array([])
+
+        for n_c in n_c_generator(subset, _width):
+            # ceiling(a/b) = -floor(a/-b)
+            # c_{ijn_i}
+            columns_to_satisfy_demand = [-(_demands[i] // -n_c[i]) for i in range(len(_demands))]
+            # cmax_{i}
+            maximum_columns = [L_max // item[1] for item in subset]
+            # kmin_{ijn_i}
+            minimum_stock_sizes = [-(columns_to_satisfy_demand[i] // -maximum_columns[i])
+                                  for i in range(len(columns_to_satisfy_demand))]
+            # cmin_{i}
+            minimum_columns = [max(L_min, item[1]) // item[1] for item in subset]
+            # kmax_{ijn_i}
+            maximum_stock_sizes = [-(columns_to_satisfy_demand[i] // -minimum_columns[i])
+                                  for i in range(len(columns_to_satisfy_demand))]
+
+            # kmin_cj
+            minimum_stock_size = max(minimum_stock_sizes)
+            # kmax_cj
+            maximum_stock_size = max(maximum_stock_sizes)
+
+            if not best_minimum_stock_size_length.size:
+                best_minimum_stock_size_length = np.full(maximum_stock_size + 1, np.inf)
+
+            # lmin_{cjk}
+
+            for k in range(minimum_stock_size, maximum_stock_size + 1):
+                # chat_{ijn_ik}
+                columns_per_panel = [-(column_to_satisfy_item_demand // -k)
+                                     for column_to_satisfy_item_demand in columns_to_satisfy_demand]
+                item_minimum_stock_size_length = [subset[i][1]*columns_per_panel[i] for i in range(len(subset))]
+                maximum_item_minimum_stock_size_length = max(item_minimum_stock_size_length)
+                if maximum_item_minimum_stock_size_length > L_max:
+                    print(f"Infeasible to meet the demand of I_{index} with {k} panels of width {_width} with row distribution of {n_c}")
+                else:
+                    if (maximum_item_minimum_stock_size_length < best_minimum_stock_size_length[k]) and (maximum_item_minimum_stock_size_length > L_min):
+                        best_minimum_stock_size_length[k] = maximum_item_minimum_stock_size_length
 
 
-#TODO THEN compute lmin_cjk foreach N_c, THEN get minimum
+
 
 
 
