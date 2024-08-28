@@ -25,10 +25,10 @@ J = [...]  # Set of potential stocks IMPLEMENTED
 #  J_w is ordered by W available widths rows. IMPLEMENTED
 #  C = range(2**len(I)-1)  # Set of index of subsets of I IMPLEMENTED
 C_j = [...]  # Set of indices of I compatible with stock size j IMPLEMENTED
-a_ic = {...}  # Dictionary parameter indicating if item i is in subset c
-lmin_cjk = {...}  # Dictionary parameter for minimum length of stock
-kmin_cj = {...}  # Lower bounds for the number of panels
-kmax_cj = {...}  # Upper bounds for the number of panels
+a_ic = lambda c, i: (lambda c, i: bool(c & (1 << i)))(c, i) # Dictionary parameter indicating if item i is in subset c
+lmin_cjk = {...}  # Dictionary parameter for minimum length of stock IMPLEMENTED
+kmin_cj = {...}  # Lower bounds for the number of panels IMPLEMENTED
+kmax_cj = {...}  # Upper bounds for the number of panels IMPLEMENTED
 
 # Decision variables
 # \alpha_{cj} 1 if the subset of item types I_c is assigned to stock size j, 0 otherwise for j \in J, c \in C
