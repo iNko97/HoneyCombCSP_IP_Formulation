@@ -4,22 +4,31 @@ from gurobipy import GRB
 # Initialize model
 model = gp.Model("2D_Cutting_Stock")
 
+# Factory settings
+
+L_min = 700  # Minimum panel length
+L_max = 3100  # Maximum panel length
+n_s_max = 2  # Maximum number of stock sizes
+n_w_max = 2  # Maximum number of widths
+W = [1200, 1400, 1550, 1600]  # Set of available stock widths
+
+# I: item types with their Width, Length, and Demand
+I = [
+    [230, 250, 600],
+    [230, 2140, 600],
+    [290, 2140, 600]
+]
+
 # Sets and parameters
-I = [...]  # Set of item types
-#  I_c is called programmatically
-J = [...]  # Set of potential stocks
-#  J_w is ordered by W available widths rows.
-#  C = range(2**len(I)-1)  # Set of index of subsets of I
-C_j = [...]  # Set of indices of I compatible with stock size j
-W = [...]  # Set of available stock widths
-L_min = ...  # Minimum panel length
-L_max = ...  # Maximum panel length
+#  I_c is called programmatically IMPLEMENTED
+J = [...]  # Set of potential stocks IMPLEMENTED
+#  J_w is ordered by W available widths rows. IMPLEMENTED
+#  C = range(2**len(I)-1)  # Set of index of subsets of I IMPLEMENTED
+C_j = [...]  # Set of indices of I compatible with stock size j IMPLEMENTED
 a_ic = {...}  # Dictionary parameter indicating if item i is in subset c
 lmin_cjk = {...}  # Dictionary parameter for minimum length of stock
 kmin_cj = {...}  # Lower bounds for the number of panels
 kmax_cj = {...}  # Upper bounds for the number of panels
-n_s_max = ...  # Maximum number of stock sizes
-n_w_max = ...  # Maximum number of widths
 
 # Decision variables
 # \alpha_{cj} 1 if the subset of item types I_c is assigned to stock size j, 0 otherwise for j \in J, c \in C
