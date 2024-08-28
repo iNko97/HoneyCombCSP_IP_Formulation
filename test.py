@@ -62,7 +62,7 @@ def function_name(index):
     for _width in W:
         subset = powerset_at_index(index)
         _demands = [item[2] for item in subset]
-
+        best_minimum_stock_size_length = np.array([])
 
         for n_c in n_c_generator(subset, _width):
             # ceiling(a/b) = -floor(a/-b)
