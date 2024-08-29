@@ -1,7 +1,7 @@
 import gurobipy as gp
 from gurobipy import GRB
 import numpy as np
-from preprocessor import C_j_generator, a_ic_generator, optimised_stocksize_variables, powerset_at_index
+from preprocessor import C_j_generator, a_ic_generator, optimised_stocksize_variables
 
 # Initialize model
 model = gp.Model("2D_Cutting_Stock")
@@ -63,6 +63,9 @@ kmin_cj = {}
 # dictionary with tuple (c, idx_j) where c I_c, idx_j J.shape[0]
 kmax_cj = {}
 
+#\Delta_j minimum difference between two lmin_cjk
+Delta_j = {}
+
 for idx in range(J.shape[0]):
     for c in C_j[idx]:
         (_kmin_cj, _kmax_cj, _lmin_cjk) = optimised_stocksize_variables(c, W[idx])
@@ -70,6 +73,7 @@ for idx in range(J.shape[0]):
         lmin_cjk.update(_lmin_cjk)
         kmin_cj[(c, idx)] = _kmin_cj
         kmax_cj[(c, idx)] = _kmax_cj
+
 
 
 # DECISION VARIABLES
@@ -255,6 +259,16 @@ model.addConstr(
     gp.quicksum(delta_w[idx] for idx in range(J.shape[0])) <= n_w_max,
     name="limit_stock_widths"
 )
+
+# 21. Symmetry breaking constraint for \beta_j
+for idx in range(J.shape[0]):
+    for n in range(J.shape[1]):
+        model.addConstr(
+                    beta_j[idx, n] <= beta_j[idx, n+1],
+                    name=f"beta_symmetry_{idx}_{n}"
+                )
+
+
 
 # Optimize the model
 model.optimize()

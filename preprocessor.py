@@ -142,11 +142,6 @@ def optimised_stocksize_variables(index, _width):
                     best_maximum_stock_size = _maximum_stock_size
     return best_minimum_stock_size, best_maximum_stock_size, best_minimum_stock_size_length
 
-
-# 3. Define potential stocks (J) of dimensions W * n_s_max
-# each row indexes are ordered by available widths.
-# J = np.zeros((len(W), n_s_max))
-
 # 4. Define subsets of I compatible with stock size j (C_j)
 # Although referring to the J matrix, it only depends on W values.
 # J[idx, :] --> C_j[idx]
