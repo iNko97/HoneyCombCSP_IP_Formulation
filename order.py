@@ -6,13 +6,13 @@ import pandas as pd
 #TODO: IMPORT FROM CSV
 
 class Order:
-    L_min = 700  # Minimum panel length
-    L_max = 3100  # Maximum panel length
-    n_s_max = 2  # Maximum number of stock sizes
-    n_w_max = 2  # Maximum number of widths
-    W = [1200, 1400, 1550, 1600]  # Set of w available stock widths
-    I=[]
+    
     def __init__(self, datasheet):
+        self.L_min = 700  # Minimum panel length
+        self.L_max = 3100  # Maximum panel length
+        self.n_s_max = 2  # Maximum number of stock sizes
+        self.n_w_max = 2  # Maximum number of widths
+        self.W = [1200, 1400, 1550, 1600]  # Set of w available stock widths
         number = input("Scegli il numero dell'ordine (da 1 a 8)")
         self.sheet = pd.read_excel(datasheet,number)
         self.Width = self.sheet['Width']
@@ -21,23 +21,23 @@ class Order:
         self.I = [self.Width, self.Length,self.Demand]
 
     #Returns the I subset corresponding to a specified index.
-    def powerset_at_index(index):
+    def powerset_at_index(self, index):
 
-        binary_repr = format(index, f'0{len(I)}b')
+        binary_repr = format(index, f'0{len(self.I)}b')
 
-        subset = [I[i] for i in range(len(I)) if binary_repr[i] == '1']
+        subset = [self.I[i] for i in range(len(self.I)) if binary_repr[i] == '1']
 
         return subset
 
     #Returns all the indexes that contain a certain I element
-    def find_indexes_with_element(element):
+    def find_indexes_with_element(self, element):
         indexes = []
 
-        if element not in I:
+        if element not in self.I:
             return []
 
-        element_idx = I.index(element)
-        n = len(I)
+        element_idx = self.I.index(element)
+        n = len(self.I)
 
         for combination in range(2 ** (n - 1)):
 
@@ -50,7 +50,7 @@ class Order:
         return indexes
 
     #Returns all possible non-dominated N_c given an i in I_c and a w in W
-    def n_c_generator(I_c, _w_max):
+    def n_c_generator(self, I_c, _w_max):
 
         widths = [item[0] for item in I_c]
 
@@ -64,8 +64,8 @@ class Order:
 
             if _total_width <= _w_max:
                 # Check if the new combination is dominated
-                if not is_dominated(combination, valid_combinations):
-                    valid_combinations = remove_dominated(valid_combinations, combination)
+                if not self.is_dominated(combination, valid_combinations):
+                    valid_combinations = self.remove_dominated(valid_combinations, combination)
                     valid_combinations.append(combination)
 
         return valid_combinations
@@ -82,23 +82,23 @@ class Order:
                 if not all(new_combo[i] >= combination[i] for i in range(len(combination)))]
 
     # returns kmin_{cj}, kmax_{cj}, lmin_{cjk}
-    def optimised_stocksize_variables(index, _width):
-        subset = powerset_at_index(index)
+    def optimised_stocksize_variables(self, index, _width):
+        subset = self.powerset_at_index(index)
         _demands = [item[2] for item in subset]
         # lmin_{cjk}
         best_minimum_stock_size_length = {}
 
-        for n_c in n_c_generator(subset, _width):
+        for n_c in self.n_c_generator(subset, _width):
             # ceiling(a/b) = -floor(a/-b)
             # c_{ijn_i}
             columns_to_satisfy_demand = [-(_demands[i] // -n_c[i]) for i in range(len(_demands))]
             # cmax_{i}
-            maximum_columns = [L_max // item[1] for item in subset]
+            maximum_columns = [self.L_max // item[1] for item in subset]
             # kmin_{ijn_i}
             _minimum_stock_sizes = [-(columns_to_satisfy_demand[i] // -maximum_columns[i])
                                     for i in range(len(columns_to_satisfy_demand))]
             # cmin_{i}
-            minimum_columns = [max(L_min, item[1]) // item[1] for item in subset]
+            minimum_columns = [max(self.L_min, item[1]) // item[1] for item in subset]
             # kmax_{ijn_i}
             _maximum_stock_sizes = [-(columns_to_satisfy_demand[i] // -minimum_columns[i])
                                     for i in range(len(columns_to_satisfy_demand))]
@@ -114,17 +114,17 @@ class Order:
                                     for column_to_satisfy_item_demand in columns_to_satisfy_demand]
                 item_minimum_stock_size_length = [subset[i][1] * columns_per_panel[i] for i in range(len(subset))]
                 maximum_item_minimum_stock_size_length = max(item_minimum_stock_size_length)
-                if maximum_item_minimum_stock_size_length > L_max:
+                if maximum_item_minimum_stock_size_length > self.L_max:
                     print(
                         f"Infeasible to meet the demand of I_{index} with {k} panels of width {_width} with row distribution of {n_c}")
                 else:
-                    if best_minimum_stock_size_length.get((index, W.index(_width), k),
-                                                        32767) > maximum_item_minimum_stock_size_length > L_min:
-                        best_minimum_stock_size_length[(index, W.index(_width), k)] = maximum_item_minimum_stock_size_length
+                    if best_minimum_stock_size_length.get((index, self.W.index(_width), k),
+                                                        32767) > maximum_item_minimum_stock_size_length > self.L_min:
+                        best_minimum_stock_size_length[(index, self.W.index(_width), k)] = maximum_item_minimum_stock_size_length
                         best_minimum_stock_size = _minimum_stock_size
                         best_maximum_stock_size = _maximum_stock_size
-                    elif maximum_item_minimum_stock_size_length < L_min:
-                        best_minimum_stock_size_length[(index, W.index(_width), k)] = L_min
+                    elif maximum_item_minimum_stock_size_length < self.L_min:
+                        best_minimum_stock_size_length[(index, self.W.index(_width), k)] = self.L_min
                         best_minimum_stock_size = _minimum_stock_size
                         best_maximum_stock_size = _maximum_stock_size
         return best_minimum_stock_size, best_maximum_stock_size, best_minimum_stock_size_length
@@ -137,11 +137,11 @@ class Order:
     # 4. Define subsets of I compatible with stock size j (C_j)
     # Although referring to the J matrix, it only depends on W values.
     # J[idx, :] --> C_j[idx]
-    def C_j_generator():
-        C_j = [[] for _ in range(len(W))]
-        for idx, width in enumerate(W):
-            for index in range(1, 2**len(I)+1):
-                subset = powerset_at_index(index)
+    def C_j_generator(self):
+        C_j = [[] for _ in range(len(self.W))]
+        for idx, width in enumerate(self.W):
+            for index in range(1, 2**len(self.I)+1):
+                subset = self.powerset_at_index(index)
                 total_width = sum(item[0] for item in subset)
 
                 if total_width <= width:
