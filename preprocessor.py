@@ -9,6 +9,7 @@ L_max = 3100  # Maximum panel length
 n_s_max = 2  # Maximum number of stock sizes
 n_w_max = 2  # Maximum number of widths
 n_i_max = 2  # Maximum number of items per pattern
+one_group = False #Only one-groups are allowed
 W = [1200, 1400, 1550, 1600]  # Set of w available stock widths
 
 # I: item types with their Width, Length, and Demand
@@ -150,9 +151,13 @@ def C_j_generator():
     C_j = [[] for _ in range(len(W))]
     for idx, width in enumerate(W):
         for index in range(1, 2**len(I)+1):
+            # Check that n_i_max is respected
             if bin(index).count('1') > n_i_max:
                 continue
             subset = powerset_at_index(index)
+            # Check that One Group policy is respected
+            if one_group and any(item != subset[0][1] for item in subset):
+                continue
             total_width = sum(item[0] for item in subset)
 
             if total_width <= width:
