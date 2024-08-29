@@ -15,13 +15,14 @@ L_min = 700  # Minimum panel length
 L_max = 3100  # Maximum panel length
 n_s_max = 2  # Maximum number of stock sizes
 n_w_max = 2  # Maximum number of widths
+n_i_max = 2  # Maximum number of items per pattern
 W = [1200, 1400, 1550, 1600]  # Set of available stock widths
 
 # I: item types with their Width, Length, and Demand
 I = [
     [230, 250, 600],
     [230, 2140, 600],
-    [290, 2140, 600]
+    [290, 2140, 600],
     [310, 340, 600],
     [310, 340, 600],
     [310, 1040, 600],
@@ -58,10 +59,10 @@ a_ic = np.reshape(a_ic, (len(I), 2**len(I)+1))
 
 # dictionary with triplet (c, idx_j, k) where c I_c, idx_j J.shape[0], k stock size
 lmin_cjk = {}
-# dictionary with tuple (c, idx_j) : range(kmin_cj, ..., kmax_cj)
+# dictionary with tuple (c, idx_j) : list(range(kmin_cj, ..., kmax_cj))
 K_cj = {}
 
-#\Delta_j minimum difference between two lmin_cjk
+# \Delta_j minimum difference between two lmin_cjk
 Delta_j = {}
 
 for idx in range(J.shape[0]):
@@ -71,6 +72,33 @@ for idx in range(J.shape[0]):
         lmin_cjk.update(_lmin_cjk)
         K_cj[(c, idx)] = list(range(_kmin_cj, _kmax_cj+1))
 
+# Pre-processing and Model Dimensions Reductions
+
+# Proposition 1: Generalised not just for k-1 but for the biggest k' smaller than k
+for idx in range(J.shape[0]):
+    for c in C_j[idx]:
+        for k in K_cj[c, idx]:
+            if k == min(K_cj[c, idx]):
+                continue
+            k_prev = max((x for x in K_cj[c, idx] if x < k))
+            if lmin_cjk[c, idx, k_prev] == lmin_cjk[c, idx, k]:
+                K_cj[c, idx].remove(k)
+
+# Proposition 2
+for idx in range(J.shape[0]):
+    for c in C_j[idx]:
+        c_items = sorted([1 << i for i in range(c.bit_length()) if c & (1 << i)], reverse=True)
+        for k in K_cj[c, idx]:
+            k_i = {}
+            for c_component in c_items:
+                for k_component in K_cj[c_component, idx]:
+                    if lmin_cjk[c_component, idx, k_component] <= lmin_cjk[c, idx, k]:
+                        k_i[c_component] = min(k_i.get(c_component, k_component), k_component)
+            if sum(k_i.values()) <= k:
+                K_cj[c, idx].remove(k)
+
+
+# \Delta_j, the minimum length difference between two different values of lmin_cjk for a stock j
 for idx in range(J.shape[0]):
     best_Delta = 32767
     for c_1 in C_j[idx]:
@@ -82,7 +110,6 @@ for idx in range(J.shape[0]):
             for k_1 in K_cj_1:
                 for k_2 in K_cj_2:
                     diff = abs(lmin_cjk[(c_1, idx, k_1)] - lmin_cjk[(c_2, idx, k_2)])
-                    print(lmin_cjk[(c_1, idx, k_1)], c_1, idx, k_1, '-', lmin_cjk[(c_2, idx, k_2)], c_2, idx, k_2, '=', diff)
                     if diff < best_Delta:
                         best_Delta = diff
                         if best_Delta == 0:
@@ -97,12 +124,8 @@ for idx in range(J.shape[0]):
             continue
         break
     Delta_j[idx] = best_Delta
-
-
-
-
-
 print(Delta_j)
+
 
 # DECISION VARIABLES
 
@@ -300,8 +323,7 @@ for idx in range(J.shape[0]):
 for idx in range(J.shape[0]):
     for n in range(J.shape[1] - 1):
         model.addConstr(
-                    # x_j[idx, n] - x_j[idx, n+1] >= Delta_j[idx] * beta_j[idx, n+1],
-                    x_j[idx, n] >= x_j[idx, n+1],
+                    x_j[idx, n] - x_j[idx, n+1] >= Delta_j[idx] * beta_j[idx, n+1],
                     name=f"x_symmetry_{idx}_{n}"
                 )
 
