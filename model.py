@@ -248,7 +248,7 @@ if model.status == GRB.OPTIMAL:
         for n in range(J.shape[1]):
             if beta_j[idx, n].x > 0.5:
                 print(f"Stock size {idx}, {n}: length = {x_j[idx, n].x}")
-                for c in C_j:
+                for c in C_j[idx]:
                     if alpha_cj[c, idx, n].x > 0.5:
                         print(f"  Subset {c}:")
                         for k in range(kmin_cj[(c, idx)], kmax_cj[(c, idx)] + 1):
