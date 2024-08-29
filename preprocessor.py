@@ -82,10 +82,8 @@ def remove_dominated(valid_combinations, new_combo):
 def optimised_stocksize_variables(index, _width):
     subset = powerset_at_index(index)
     _demands = [item[2] for item in subset]
-    #lmin_{cjk}
-    best_minimum_stock_size_length = np.full(1, 32767, dtype=np.int16)
-    best_minimum_stock_size = 32767
-    best_maximum_stock_size = -1
+    # lmin_{cjk}
+    best_minimum_stock_size_length = {}
 
     for n_c in n_c_generator(subset, _width):
         # ceiling(a/b) = -floor(a/-b)
@@ -95,21 +93,17 @@ def optimised_stocksize_variables(index, _width):
         maximum_columns = [L_max // item[1] for item in subset]
         # kmin_{ijn_i}
         _minimum_stock_sizes = [-(columns_to_satisfy_demand[i] // -maximum_columns[i])
-                               for i in range(len(columns_to_satisfy_demand))]
+                                for i in range(len(columns_to_satisfy_demand))]
         # cmin_{i}
         minimum_columns = [max(L_min, item[1]) // item[1] for item in subset]
         # kmax_{ijn_i}
         _maximum_stock_sizes = [-(columns_to_satisfy_demand[i] // -minimum_columns[i])
-                               for i in range(len(columns_to_satisfy_demand))]
+                                for i in range(len(columns_to_satisfy_demand))]
 
         # kmin_cj
         _minimum_stock_size = max(_minimum_stock_sizes)
         # kmax_cj
         _maximum_stock_size = max(_maximum_stock_sizes)
-
-        if best_minimum_stock_size_length.size < _maximum_stock_size + 1:
-            extender = np.full(_maximum_stock_size - best_minimum_stock_size_length.size + 1, 32767, dtype=np.int16)
-            best_minimum_stock_size_length = np.concatenate((best_minimum_stock_size_length, extender), axis=None)
 
         for k in range(_minimum_stock_size, _maximum_stock_size + 1):
             # chat_{ijn_ik}
@@ -121,12 +115,13 @@ def optimised_stocksize_variables(index, _width):
                 print(
                     f"Infeasible to meet the demand of I_{index} with {k} panels of width {_width} with row distribution of {n_c}")
             else:
-                if best_minimum_stock_size_length[k] > maximum_item_minimum_stock_size_length > L_min:
-                    np.put(best_minimum_stock_size_length, k, maximum_item_minimum_stock_size_length)
+                if best_minimum_stock_size_length.get((index, W.index(_width), k),
+                                                      32767) > maximum_item_minimum_stock_size_length > L_min:
+                    best_minimum_stock_size_length[(index, W.index(_width), k)] = maximum_item_minimum_stock_size_length
                     best_minimum_stock_size = _minimum_stock_size
                     best_maximum_stock_size = _maximum_stock_size
                 elif maximum_item_minimum_stock_size_length < L_min:
-                    np.put(best_minimum_stock_size_length, k, L_min)
+                    best_minimum_stock_size_length[(index, W.index(_width), k)] = L_min
                     best_minimum_stock_size = _minimum_stock_size
                     best_maximum_stock_size = _maximum_stock_size
     return best_minimum_stock_size, best_maximum_stock_size, best_minimum_stock_size_length
@@ -134,28 +129,44 @@ def optimised_stocksize_variables(index, _width):
 
 # 3. Define potential stocks (J) of dimensions W * n_s_max
 # each row indexes are ordered by available widths.
-J = np.zeros((len(W), n_s_max))
+# J = np.zeros((len(W), n_s_max))
 
 # 4. Define subsets of I compatible with stock size j (C_j)
 # Although referring to the J matrix, it only depends on W values.
 # J[idx, :] --> C_j[idx]
-C_j = [[] for _ in range(len(W))]
+def C_j_generator():
+    C_j = [[] for _ in range(len(W))]
+    for idx, width in enumerate(W):
+        for index in range(1, 2**len(I)+1):
+            subset = powerset_at_index(index)
+            total_width = sum(item[0] for item in subset)
 
-for idx, width in enumerate(W):
-    for index in range(1, 2**len(I)+1):
-        subset = powerset_at_index(index)
-        total_width = sum(item[0] for item in subset)
+            if total_width <= width:
+                C_j[idx].append(index)
+    return C_j
 
-        if total_width <= width:
-            C_j[idx].append(index)
+#Checks whether item i is in index c
+def a_ic_generator(i, c):
+    return 1 if bool(c & (1 << i)) else 0
 
-K = {}
-for idx, width in enumerate(W):
-    K[width] = {}
-    print(C_j)
-    for index in C_j[idx]:
-        (minimum_stock_size, maximum_stock_size, minimum_stock_size_length) = optimised_stocksize_variables(index, width)
-        K[width][index] = [i for i in range(minimum_stock_size, maximum_stock_size+1)]
+J = np.zeros((len(W), n_s_max))
+this_cj = C_j_generator()
 
-print(K)
+lmin_cjk = {}
+kmin_cj = {}
+kmax_cj = {}
+
+for idx in range(J.shape[0]):
+    for c in this_cj[idx]:
+        print(W[idx])
+        (_kmin_cj, _kmax_cj, _lmin_cjk) = optimised_stocksize_variables(c, W[idx])
+
+        lmin_cjk.update(_lmin_cjk)
+        kmin_cj[(c, idx)] = _kmin_cj
+        kmax_cj[(c, idx)] = _kmax_cj
+
+print(lmin_cjk)
+print(kmin_cj)
+print(kmax_cj)
+
 

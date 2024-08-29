@@ -1,5 +1,7 @@
 import gurobipy as gp
 from gurobipy import GRB
+import numpy as np
+from preprocessor import C_j_generator, a_ic_generator, optimised_stocksize_variables
 
 # Initialize model
 model = gp.Model("2D_Cutting_Stock")
@@ -20,27 +22,53 @@ I = [
 ]
 
 # Sets and parameters
-#  I_c is called programmatically IMPLEMENTED
-J = [...]  # Set of potential stocks IMPLEMENTED
-#  J_w is ordered by W available widths rows. IMPLEMENTED
-#  C = range(2**len(I)-1)  # Set of index of subsets of I IMPLEMENTED
-C_j = [...]  # Set of indices of I compatible with stock size j IMPLEMENTED
-a_ic = lambda c, i: (lambda c, i: bool(c & (1 << i)))(c, i) # Dictionary parameter indicating if in index c we have item i
-lmin_cjk = {...}  # Dictionary parameter for minimum length of stock IMPLEMENTED
-kmin_cj = {...}  # Lower bounds for the number of panels IMPLEMENTED
-kmax_cj = {...}  # Upper bounds for the number of panels IMPLEMENTED
+
+# Potential stocks J of dimensions |W| * n_s_max
+# This is essentially a matrix of all x_j
+# Each row is indexed by available widths.
+# Note how for a certain w, idx = W.index(w),then the set J^w' = J[idx, :]
+J = np.zeros((len(W), n_s_max))
+
+# Subsets of I compatible with stock size j (C_j)
+# Although referring to the J matrix, it only depends on W values.
+# given a j at index J[idx, 0], ..., J[idx, n] --> C_j[idx] forall n
+C_j = C_j_generator()
+
+a_ic = [a_ic_generator(i, c) for i in range(len(I)) for c in range(2**len(I))]
+a_ic = np.reshape(a_ic, (len(I), 2**len(I)))
+
+lmin_cjk = {}
+kmin_cj = {}
+kmax_cj = {}
+
+for idx in range(J.shape[0]):
+    for n in range(J.shape[1]):
+        for c in C_j[idx]:
+            (_kmin_cj, _kmax_cj, _lmin_cjk) = optimised_stocksize_variables(c, W[idx])
+
+            lmin_cjk[(c, idx, k)] = _lmin_cjk
+            kmin_cj[(c, idx)] = _kmin_cj
+            kmax_cj[(c, idx)] = _kmax_cj
+
 
 # Decision variables
 # \alpha_{cj} 1 if the subset of item types I_c is assigned to stock size j, 0 otherwise for j \in J, c \in C
-alpha_cj = model.addVars(C_j, J, vtype=GRB.BINARY, name="alpha_cj")
+alpha_cj = model.addVars(J, C_j, vtype=GRB.BINARY, name="alpha_cj")
 
 # \beta_j 1 if stock size j is selected, 0 otherwise for j \in J
 beta_j = model.addVars(J, vtype=GRB.BINARY, name="beta_j")
 
 # \gamma_{cjk} 1 if a total of k panels of stock size j are produced to satisfy the demand for item types in subset I_c,
 # 0 otherwise, for j \in J, c \in C_j, k \in K_{cj}
-gamma_cjk = model.addVars([(c, j, k) for j in J for c in C_j[j] for k in range(kmin_cj[(c, j)], kmax_cj[(c, j)] + 1)],
-                          vtype=GRB.BINARY, name="gamma_cjk")
+gamma_cjk = model.addVars(
+    [(c, J[idx, n], k)
+     for idx in range(J.shape[0])
+     for n in range(J.shape[1])
+     for c in C_j[idx]
+     for k in range(kmin_cj[(c, J[idx, n])], kmax_cj[(c, J[idx, n])] + 1)],
+    vtype=GRB.BINARY,
+    name="gamma_cjk"
+)
 
 # \delta_{w} 1 if at least one stock size in J^{w} is selected, 0 otherwise for w' \in W
 delta_w = model.addVars(W, vtype=GRB.BINARY, name="delta_w")
@@ -51,19 +79,33 @@ x_j = model.addVars(J, vtype=GRB.CONTINUOUS, name="x_j")
 # y_{cjk}
 # Auxiliary continuous variable needed to linearise the product x_j*\gamma_{cjk} for j \in J, c \in C, k \in K_{cj}.
 # Note that y_{cjk} = x_j if \gamma_{cjk} = 1, otherwise 0
-y_cjk = model.addVars([(c, j, k) for j in J for c in C_j[j] for k in range(kmin_cj[(c, j)], kmax_cj[(c, j)] + 1)],
-                      vtype=GRB.CONTINUOUS, name="y_cjk")
+y_cjk = model.addVars(
+    [(c, J[idx, n], k)
+     for idx in range(J.shape[0])
+     for n in range(J.shape[1])
+     for c in C_j[idx]
+     for k in range(kmin_cj[(c, J[idx, n])], kmax_cj[(c, J[idx, n])] + 1)],
+    vtype=GRB.CONTINUOUS,
+    name="y_cjk"
+)
 
 # Objective function
 # 2. Minimise the total area of the material used
-model.setObjective(gp.quicksum(W[j] * k * y_cjk[c, j, k]
-                               for j in J for c in C_j[j] for k in range(kmin_cj[(c, j)], kmax_cj[(c, j)] + 1)),
-                   GRB.MINIMIZE)
+model.setObjective(
+    gp.quicksum(
+        W[idx] * k * y_cjk[c, J[idx, n], k]
+        for idx in range(J.shape[0])
+        for n in range(J.shape[1])
+        for c in C_j[idx]
+        for k in range(kmin_cj[(c, J[idx, n])], kmax_cj[(c, J[idx, n])] + 1)
+    ),
+    GRB.MINIMIZE
+)
 
 # Constraints
 # 3. Ensure that each item is allocated to a stock size
 for i in I:
-    model.addConstr(gp.quicksum(alpha_cj[c, j] * a_ic[(i, c)] for j in J for c in C_j[j]) == 1, name=f"link_alpha_a_{i}")
+    model.addConstr(gp.quicksum(alpha_cj[c, j] * a_ic[(i, c)] for j in J for c in C_j) == 1, name=f"link_alpha_a_{i}")
 
 # 4. Ensure that a stock size is used iff at least 1 item type is assigned to it
 for j in J:
