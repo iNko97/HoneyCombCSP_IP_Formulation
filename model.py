@@ -25,7 +25,7 @@ J = [...]  # Set of potential stocks IMPLEMENTED
 #  J_w is ordered by W available widths rows. IMPLEMENTED
 #  C = range(2**len(I)-1)  # Set of index of subsets of I IMPLEMENTED
 C_j = [...]  # Set of indices of I compatible with stock size j IMPLEMENTED
-a_ic = lambda c, i: (lambda c, i: bool(c & (1 << i)))(c, i) # Dictionary parameter indicating if item i is in subset c
+a_ic = lambda c, i: (lambda c, i: bool(c & (1 << i)))(c, i) # Dictionary parameter indicating if in index c we have item i
 lmin_cjk = {...}  # Dictionary parameter for minimum length of stock IMPLEMENTED
 kmin_cj = {...}  # Lower bounds for the number of panels IMPLEMENTED
 kmax_cj = {...}  # Upper bounds for the number of panels IMPLEMENTED
@@ -98,8 +98,8 @@ for j in J:
 
 # 12. Ensure a stock size width is used iff used at least one time.
 for w in W:
-    model.addConstr(gp.quicksum(beta_j[j] for j in J_w[w]) >= delta_w[w], name=f"link_delta_beta_{w}")
-    for j in J_w[w]:
+    model.addConstr(gp.quicksum(beta_j[j] for j in J[w]) >= delta_w[w], name=f"link_delta_beta_{w}")
+    for j in J[w]:
         model.addConstr(beta_j[j] <= delta_w[w], name=f"link_beta_delta_{w}_{j}")
 
 # 13. Limit the number of stock widths
@@ -114,7 +114,7 @@ if model.status == GRB.OPTIMAL:
     for j in J:
         if beta_j[j].x > 0.5:
             print(f"Stock size {j}: length = {x_j[j].x}")
-            for c in C:
+            for c in C_j:
                 if alpha_cj[c, j].x > 0.5:
                     print(f"  Subset {c}:")
                     for k in range(kmin_cj[(c, j)], kmax_cj[(c, j)] + 1):
