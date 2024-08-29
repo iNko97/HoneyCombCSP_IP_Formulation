@@ -6,11 +6,11 @@ from itertools import product
 
 L_min = 700  # Minimum panel length
 L_max = 3100  # Maximum panel length
-n_s_max = 2  # Maximum number of stock sizes
-n_w_max = 2  # Maximum number of widths
+n_s_max = 1  # Maximum number of stock sizes
+n_w_max = 1  # Maximum number of widths
 n_i_max = 2  # Maximum number of items per pattern
-one_group = False #Only one-groups are allowed
-W = [1200, 1400, 1550, 1600]  # Set of w available stock widths
+one_group = False  # Only one-groups are allowed
+W = [1200]  # Set of w available stock widths
 
 # I: item types with their Width, Length, and Demand
 I = [

@@ -13,10 +13,11 @@ path = "path/to/order.csv"
 
 L_min = 700  # Minimum panel length
 L_max = 3100  # Maximum panel length
-n_s_max = 2  # Maximum number of stock sizes
-n_w_max = 2  # Maximum number of widths
+n_s_max = 1  # Maximum number of stock sizes
+n_w_max = 1  # Maximum number of widths
 n_i_max = 2  # Maximum number of items per pattern
-W = [1200, 1400, 1550, 1600]  # Set of available stock widths
+one_group = False  # Only one-groups are allowed
+W = [1200]  # Set of w available stock widths
 
 # I: item types with their Width, Length, and Demand
 I = [
@@ -62,7 +63,7 @@ lmin_cjk = {}
 # dictionary with tuple (c, idx_j) : list(range(kmin_cj, ..., kmax_cj))
 K_cj = {}
 
-# \Delta_j minimum difference between two lmin_cjk
+#  dictionary with (idx) : Delta_j, that is the minimum difference between two lmin_cjk
 Delta_j = {}
 
 for idx in range(J.shape[0]):
@@ -74,27 +75,31 @@ for idx in range(J.shape[0]):
 
 # Pre-processing and Model Dimensions Reductions
 
-# Proposition 1: Generalised not just for k-1 but for the biggest k' smaller than k
+# # Proposition 1: Generalised not just for k-1 but for the biggest k' smaller than k
 for idx in range(J.shape[0]):
     for c in C_j[idx]:
         for k in K_cj[c, idx]:
             if k == min(K_cj[c, idx]):
                 continue
-            k_prev = max((x for x in K_cj[c, idx] if x < k))
-            if lmin_cjk[c, idx, k_prev] == lmin_cjk[c, idx, k]:
+            # k_prev = max((x for x in K_cj[c, idx] if x < k))
+            if lmin_cjk[c, idx, k-1] == lmin_cjk[c, idx, k]:
                 K_cj[c, idx].remove(k)
 
-# Proposition 2
+# # Proposition 2
 for idx in range(J.shape[0]):
     for c in C_j[idx]:
-        c_items = sorted([1 << i for i in range(c.bit_length()) if c & (1 << i)], reverse=True)
+        c_primes = sorted([1 << i for i in range(c.bit_length()) if c & (1 << i)], reverse=True)
+        if len(c_primes) == 1:
+            continue
         for k in K_cj[c, idx]:
             k_i = {}
-            for c_component in c_items:
-                for k_component in K_cj[c_component, idx]:
-                    if lmin_cjk[c_component, idx, k_component] <= lmin_cjk[c, idx, k]:
-                        k_i[c_component] = min(k_i.get(c_component, k_component), k_component)
-            if sum(k_i.values()) <= k:
+            for c_prime in c_primes:
+                for k_prime in K_cj[c_prime, idx]:
+                    if lmin_cjk[c_prime, idx, k_prime] <= lmin_cjk[c, idx, k]:
+                        k_i[c_prime] = min(k_i.get(c_prime, k_prime), k_prime)
+
+            if len(k_i) == len(c_primes) and sum(k_i.values()) <= k:
+                print(k_i, c_primes, sum(k_i.values()), k)
                 K_cj[c, idx].remove(k)
 
 
@@ -103,7 +108,7 @@ for idx in range(J.shape[0]):
     best_Delta = 32767
     for c_1 in C_j[idx]:
         for c_2 in C_j[idx]:
-            if c_1 & c_2 > 0:
+            if c_1 == c_2:
                 continue
             K_cj_1 = K_cj[(c_1, idx)]
             K_cj_2 = K_cj[(c_2, idx)]
@@ -124,7 +129,6 @@ for idx in range(J.shape[0]):
             continue
         break
     Delta_j[idx] = best_Delta
-print(Delta_j)
 
 
 # DECISION VARIABLES
@@ -341,6 +345,8 @@ if model.status == GRB.OPTIMAL:
                 for c in C_j[idx]:
                     if alpha_cj[c, idx, n].x > 0.5:
                         print(f"  Subset {format(c, f'0{len(I)}b')}:")
+                        components = [i for i in range(len(I)) if c & (1 << (len(I) - 1 - i))]
+                        print(f"  or {components}:")
                         for k in K_cj[(c, idx)]:
                             if gamma_cjk[c, idx, n, k].x > 0.5:
                                 print(f"    {k} panels, y_cjk = {y_cjk[c, idx, n, k].x}")
