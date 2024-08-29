@@ -21,7 +21,7 @@ W = [1200, 1400, 1550, 1600]  # Set of available stock widths
 I = [
     [230, 250, 600],
     [230, 2140, 600],
-    [290, 2140, 600],
+    [290, 2140, 600]
     [310, 340, 600],
     [310, 340, 600],
     [310, 1040, 600],
@@ -58,10 +58,8 @@ a_ic = np.reshape(a_ic, (len(I), 2**len(I)+1))
 
 # dictionary with triplet (c, idx_j, k) where c I_c, idx_j J.shape[0], k stock size
 lmin_cjk = {}
-# dictionary with tuple (c, idx_j) where c I_c, idx_j J.shape[0]
-kmin_cj = {}
-# dictionary with tuple (c, idx_j) where c I_c, idx_j J.shape[0]
-kmax_cj = {}
+# dictionary with tuple (c, idx_j) : range(kmin_cj, ..., kmax_cj)
+K_cj = {}
 
 #\Delta_j minimum difference between two lmin_cjk
 Delta_j = {}
@@ -71,10 +69,40 @@ for idx in range(J.shape[0]):
         (_kmin_cj, _kmax_cj, _lmin_cjk) = optimised_stocksize_variables(c, W[idx])
 
         lmin_cjk.update(_lmin_cjk)
-        kmin_cj[(c, idx)] = _kmin_cj
-        kmax_cj[(c, idx)] = _kmax_cj
+        K_cj[(c, idx)] = list(range(_kmin_cj, _kmax_cj+1))
+
+for idx in range(J.shape[0]):
+    best_Delta = 32767
+    for c_1 in C_j[idx]:
+        for c_2 in C_j[idx]:
+            if c_1 & c_2 > 0:
+                continue
+            K_cj_1 = K_cj[(c_1, idx)]
+            K_cj_2 = K_cj[(c_2, idx)]
+            for k_1 in K_cj_1:
+                for k_2 in K_cj_2:
+                    diff = abs(lmin_cjk[(c_1, idx, k_1)] - lmin_cjk[(c_2, idx, k_2)])
+                    print(lmin_cjk[(c_1, idx, k_1)], c_1, idx, k_1, '-', lmin_cjk[(c_2, idx, k_2)], c_2, idx, k_2, '=', diff)
+                    if diff < best_Delta:
+                        best_Delta = diff
+                        if best_Delta == 0:
+                            break
+                else:
+                    continue
+                break
+            else:
+                continue
+            break
+        else:
+            continue
+        break
+    Delta_j[idx] = best_Delta
 
 
+
+
+
+print(Delta_j)
 
 # DECISION VARIABLES
 
@@ -106,7 +134,7 @@ gamma_cjk = model.addVars(
      for idx in range(J.shape[0])
      for n in range(J.shape[1])
      for c in C_j[idx]
-     for k in range(kmin_cj[(c, idx)], kmax_cj[(c, idx)] + 1)
+     for k in K_cj[(c, idx)]
      ],
     vtype=GRB.BINARY,
     name="gamma_cjk"
@@ -139,7 +167,7 @@ y_cjk = model.addVars(
      for idx in range(J.shape[0])
      for n in range(J.shape[1])
      for c in C_j[idx]
-     for k in range(kmin_cj[(c, idx)], kmax_cj[(c, idx)] + 1)],
+     for k in K_cj[(c, idx)]],
     vtype=GRB.CONTINUOUS,
     lb=0,
     name="y_cjk"
@@ -153,7 +181,7 @@ model.setObjective(
         for idx in range(J.shape[0])
         for n in range(J.shape[1])
         for c in C_j[idx]
-        for k in range(kmin_cj[(c, idx)], kmax_cj[(c, idx)] + 1)
+        for k in K_cj[(c, idx)]
     ),
     GRB.MINIMIZE
 )
@@ -197,7 +225,7 @@ for idx in range(J.shape[0]):
             model.addConstr(
                 gp.quicksum(
                     gamma_cjk[c, idx, n, k]
-                    for k in range(kmin_cj[(c, idx)], kmax_cj[(c, idx)] + 1)
+                    for k in K_cj[(c, idx)]
                     ) == alpha_cj[c, idx, n],
                 name=f"link_gamma_alpha_{c}_{idx}_{n}"
             )
@@ -212,11 +240,11 @@ for idx in range(J.shape[0]):
             model.addConstr(
                 gp.quicksum(
                     lmin_cjk[(c, idx, k)] * gamma_cjk[c, idx, n, k]
-                    for k in range(kmin_cj[(c, idx)], kmax_cj[(c, idx)] + 1)
+                    for k in K_cj[(c, idx)]
                 ) <= x_j[idx, n],
                 name=f"length_bound_7_{c}_{idx}_{n}"
             )
-            for k in range(kmin_cj[(c, idx)], kmax_cj[(c, idx)] + 1):
+            for k in K_cj[(c, idx)]:
                 model.addConstr(
                     y_cjk[c, idx, n, k] <= x_j[idx, n],
                     name=f"link_8_y_x_{c}_{idx}_{n}_{k}"
@@ -262,12 +290,20 @@ model.addConstr(
 
 # 21. Symmetry breaking constraint for \beta_j
 for idx in range(J.shape[0]):
-    for n in range(J.shape[1]):
+    for n in range(0, J.shape[1]-1):
         model.addConstr(
-                    beta_j[idx, n] <= beta_j[idx, n+1],
+                    beta_j[idx, n+1] <= beta_j[idx, n],
                     name=f"beta_symmetry_{idx}_{n}"
                 )
 
+# 22. Symmetry breaking constraint for \x_j
+for idx in range(J.shape[0]):
+    for n in range(J.shape[1] - 1):
+        model.addConstr(
+                    # x_j[idx, n] - x_j[idx, n+1] >= Delta_j[idx] * beta_j[idx, n+1],
+                    x_j[idx, n] >= x_j[idx, n+1],
+                    name=f"x_symmetry_{idx}_{n}"
+                )
 
 
 # Optimize the model
@@ -283,7 +319,7 @@ if model.status == GRB.OPTIMAL:
                 for c in C_j[idx]:
                     if alpha_cj[c, idx, n].x > 0.5:
                         print(f"  Subset {format(c, f'0{len(I)}b')}:")
-                        for k in range(kmin_cj[(c, idx)], kmax_cj[(c, idx)] + 1):
+                        for k in K_cj[(c, idx)]:
                             if gamma_cjk[c, idx, n, k].x > 0.5:
                                 print(f"    {k} panels, y_cjk = {y_cjk[c, idx, n, k].x}")
 else:

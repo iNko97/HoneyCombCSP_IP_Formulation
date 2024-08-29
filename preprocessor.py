@@ -14,7 +14,7 @@ W = [1200, 1400, 1550, 1600]  # Set of w available stock widths
 I = [
     [230, 250, 600],
     [230, 2140, 600],
-    [290, 2140, 600],
+    [290, 2140, 600]
     [310, 340, 600],
     [310, 340, 600],
     [310, 1040, 600],
@@ -159,5 +159,3 @@ def C_j_generator():
 #Checks whether item i is in index c
 def a_ic_generator(i, c):
     return 1 if bool(c & (1 << i)) else 0
-
-
