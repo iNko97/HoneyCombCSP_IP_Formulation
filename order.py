@@ -14,13 +14,13 @@ class Order:
         self.n_w_max = 2  # Maximum number of widths
         self.W = [1200, 1400, 1550, 1600]  # Set of w available stock widths
         number = input("Scegli il numero dell'ordine (da 1 a 8)")
-        self.sheet = pd.read_excel(datasheet,number)
+        self.sheet = pd.read_excel(datasheet, number)
         self.Width = self.sheet['Width']
         self.Length = self.sheet['Length']
         self.Demand = self.sheet['Demand']
         self.I = [self.Width, self.Length,self.Demand]
 
-    #Returns the I subset corresponding to a specified index.
+    # Returns the I subset corresponding to a specified index.
     def powerset_at_index(self, index):
 
         binary_repr = format(index, f'0{len(self.I)}b')
@@ -29,7 +29,7 @@ class Order:
 
         return subset
 
-    #Returns all the indexes that contain a certain I element
+    # Returns all the indexes that contain a certain I element
     def find_indexes_with_element(self, element):
         indexes = []
 
@@ -49,7 +49,7 @@ class Order:
 
         return indexes
 
-    #Returns all possible non-dominated N_c given an i in I_c and a w in W
+    # Returns all possible non-dominated N_c given an i in I_c and a w in W
     def n_c_generator(self, I_c, _w_max):
 
         widths = [item[0] for item in I_c]
@@ -129,11 +129,6 @@ class Order:
                         best_maximum_stock_size = _maximum_stock_size
         return best_minimum_stock_size, best_maximum_stock_size, best_minimum_stock_size_length
 
-
-    # 3. Define potential stocks (J) of dimensions W * n_s_max
-    # each row indexes are ordered by available widths.
-    # J = np.zeros((len(W), n_s_max))
-
     # 4. Define subsets of I compatible with stock size j (C_j)
     # Although referring to the J matrix, it only depends on W values.
     # J[idx, :] --> C_j[idx]
@@ -148,7 +143,7 @@ class Order:
                     C_j[idx].append(index)
         return C_j
 
-    #Checks whether item i is in index c
+    # Checks whether item i is in index c
     def a_ic_generator(i, c):
         return 1 if bool(c & (1 << i)) else 0
 
