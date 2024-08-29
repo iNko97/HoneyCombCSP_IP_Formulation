@@ -13,12 +13,16 @@ class Order:
         self.n_s_max = 2  # Maximum number of stock sizes
         self.n_w_max = 2  # Maximum number of widths
         self.W = [1200, 1400, 1550, 1600]  # Set of w available stock widths
-        number = input("Scegli il numero dell'ordine (da 1 a 8)")
+        number = int(input("Scegli il numero dell'ordine (da 1 a 9, 9 è il test)"))
         self.sheet = pd.read_excel(datasheet, number)
         self.Width = self.sheet['Width']
         self.Length = self.sheet['Length']
         self.Demand = self.sheet['Demand']
-        self.I = [self.Width, self.Length,self.Demand]
+        self.I = []
+        for item in enumerate(self.Width):
+            curr = [self.Width[item[0]], self.Length[item[0]], self.Demand[item[0]]]
+            self.I.append(curr)
+            curr = []
 
     # Returns the I subset corresponding to a specified index.
     def powerset_at_index(self, index):
