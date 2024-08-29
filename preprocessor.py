@@ -149,24 +149,4 @@ def C_j_generator():
 def a_ic_generator(i, c):
     return 1 if bool(c & (1 << i)) else 0
 
-J = np.zeros((len(W), n_s_max))
-this_cj = C_j_generator()
-
-lmin_cjk = {}
-kmin_cj = {}
-kmax_cj = {}
-
-for idx in range(J.shape[0]):
-    for c in this_cj[idx]:
-        print(W[idx])
-        (_kmin_cj, _kmax_cj, _lmin_cjk) = optimised_stocksize_variables(c, W[idx])
-
-        lmin_cjk.update(_lmin_cjk)
-        kmin_cj[(c, idx)] = _kmin_cj
-        kmax_cj[(c, idx)] = _kmax_cj
-
-print(lmin_cjk)
-print(kmin_cj)
-print(kmax_cj)
-
 

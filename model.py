@@ -42,13 +42,13 @@ kmin_cj = {}
 kmax_cj = {}
 
 for idx in range(J.shape[0]):
-    for n in range(J.shape[1]):
-        for c in C_j[idx]:
-            (_kmin_cj, _kmax_cj, _lmin_cjk) = optimised_stocksize_variables(c, W[idx])
+    for c in C_j[idx]:
+        print(W[idx])
+        (_kmin_cj, _kmax_cj, _lmin_cjk) = optimised_stocksize_variables(c, W[idx])
 
-            lmin_cjk[(c, idx, k)] = _lmin_cjk
-            kmin_cj[(c, idx)] = _kmin_cj
-            kmax_cj[(c, idx)] = _kmax_cj
+        lmin_cjk.update(_lmin_cjk)
+        kmin_cj[(c, idx)] = _kmin_cj
+        kmax_cj[(c, idx)] = _kmax_cj
 
 
 # Decision variables
