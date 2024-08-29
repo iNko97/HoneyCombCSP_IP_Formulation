@@ -1,7 +1,7 @@
 import gurobipy as gp
 from gurobipy import GRB
 import numpy as np
-from preprocessor import C_j_generator, a_ic_generator, optimised_stocksize_variables
+from preprocessor import C_j_generator, a_ic_generator, optimised_stocksize_variables, powerset_at_index
 
 # Initialize model
 model = gp.Model("2D_Cutting_Stock")
@@ -21,7 +21,23 @@ W = [1200, 1400, 1550, 1600]  # Set of available stock widths
 I = [
     [230, 250, 600],
     [230, 2140, 600],
-    [290, 2140, 600]
+    [290, 2140, 600],
+    [310, 340, 600],
+    [310, 340, 600],
+    [310, 1040, 600],
+    [310, 1040, 600],
+    [380, 1040, 600],
+    [380, 1040, 600],
+    [460, 470, 220],
+    [460, 1040, 220],
+    [480, 570, 600],
+    [510, 1040, 220],
+    [840, 840, 220],
+    [840, 840, 270],
+    [840, 1860, 220],
+    [840, 1860, 270],
+    [880, 1860, 220],
+    [880, 1860, 270]
 ]
 
 # Sets and parameters
@@ -140,13 +156,15 @@ model.setObjective(
 
 # CONSTRAINTS
 # 3. Ensure that each item is allocated to a stock size
+#suppressed IDE warning
 for i in range(len(I)):
+    # noinspection PyTypeChecker
     model.addConstr(
         gp.quicksum(alpha_cj[c, idx, n] * a_ic[i][c]
                     for idx in range(J.shape[0])
                     for n in range(J.shape[1])
                     for c in C_j[idx]) == 1,
-        name=f"link_alpha_a_{i}"
+        name=f'link_alpha_a_{i}'
     )
 
 # 4. Ensure that a stock size is used iff at least 1 item type is assigned to it
@@ -247,12 +265,12 @@ if model.status == GRB.OPTIMAL:
     for idx in range(J.shape[0]):
         for n in range(J.shape[1]):
             if beta_j[idx, n].x > 0.5:
-                print(f"Stock size {idx}, {n}: length = {x_j[idx, n].x}")
+                print(f"Stock size {idx}, {n}: width = {W[idx]}, length = {x_j[idx, n].x}")
                 for c in C_j[idx]:
                     if alpha_cj[c, idx, n].x > 0.5:
-                        print(f"  Subset {c}:")
+                        print(f"  Subset {format(c, f'0{len(I)}b')}:")
                         for k in range(kmin_cj[(c, idx)], kmax_cj[(c, idx)] + 1):
                             if gamma_cjk[c, idx, n, k].x > 0.5:
-                                print(f"{k} panels, y_cjk = {y_cjk[c, idx, n, k].x}")
+                                print(f"    {k} panels, y_cjk = {y_cjk[c, idx, n, k].x}")
 else:
     print("No optimal solution found.")
