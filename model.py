@@ -109,6 +109,11 @@ for idx in range(J.shape[0]):
         break
     Delta_j[idx] = best_Delta
 
+# A_c lower bound for the area of material used
+A_c = {}
+for (c, idx, k), value in lmin_cjk.items():
+    current_product = k * W[idx] * value
+    A_c[c] = min(A_c.get(c, current_product), current_product)
 
 # DECISION VARIABLES
 
@@ -311,7 +316,6 @@ for idx in range(J.shape[0]):
                     name=f"x_symmetry_{idx}_{n}"
                 )
 
-
 # Optimize the model
 model.optimize()
 
@@ -324,9 +328,8 @@ if model.status == GRB.OPTIMAL:
                 print(f"Stock size {idx}, {n}: width = {W[idx]}, length = {x_j[idx, n].x}")
                 for c in C_j[idx]:
                     if alpha_cj[c, idx, n].x > 0.5:
-                        print(f"  Subset {format(c, f'0{len(I)}b')}:")
                         components = [i for i in range(len(I)) if c & (1 << (len(I) - 1 - i))]
-                        print(f"  or {components}:")
+                        print(f"  Items number {components}:")
                         for k in K_cj[(c, idx)]:
                             if gamma_cjk[c, idx, n, k].x > 0.5:
                                 print(f"    {k} panels, y_cjk = {y_cjk[c, idx, n, k].x}")
