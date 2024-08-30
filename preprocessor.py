@@ -6,9 +6,11 @@ from itertools import product
 
 L_min = 700  # Minimum panel length
 L_max = 3100  # Maximum panel length
-n_s_max = 2  # Maximum number of stock sizes
-n_w_max = 2  # Maximum number of widths
-W = [1200, 1400, 1550, 1600]  # Set of w available stock widths
+n_s_max = 1  # Maximum number of stock sizes
+n_w_max = 1  # Maximum number of widths
+n_i_max = 2  # Maximum number of items per pattern
+one_group = False  # Only one-groups are allowed
+W = [1200]  # Set of w available stock widths
 
 # I: item types with their Width, Length, and Demand
 I = [
@@ -142,11 +144,6 @@ def optimised_stocksize_variables(index, _width):
                     best_maximum_stock_size = _maximum_stock_size
     return best_minimum_stock_size, best_maximum_stock_size, best_minimum_stock_size_length
 
-
-# 3. Define potential stocks (J) of dimensions W * n_s_max
-# each row indexes are ordered by available widths.
-# J = np.zeros((len(W), n_s_max))
-
 # 4. Define subsets of I compatible with stock size j (C_j)
 # Although referring to the J matrix, it only depends on W values.
 # J[idx, :] --> C_j[idx]
@@ -154,9 +151,14 @@ def C_j_generator():
     C_j = [[] for _ in range(len(W))]
     for idx, width in enumerate(W):
         for index in range(1, 2**len(I)+1):
+            # Check that n_i_max is respected
+            if bin(index).count('1') > n_i_max:
+                continue
             subset = powerset_at_index(index)
+            # Check that One Group policy is respected
+            if one_group and any(item != subset[0][1] for item in subset):
+                continue
             total_width = sum(item[0] for item in subset)
-
             if total_width <= width:
                 C_j[idx].append(index)
     return C_j
@@ -164,5 +166,3 @@ def C_j_generator():
 #Checks whether item i is in index c
 def a_ic_generator(i, c):
     return 1 if bool(c & (1 << i)) else 0
-
-
