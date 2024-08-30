@@ -1,7 +1,7 @@
 import gurobipy as gp
 from gurobipy import GRB
 import numpy as np
-from preprocessor import C_j_generator, a_ic_generator, optimised_stocksize_variables
+from order import Order
 
 # Initialize model
 model = gp.Model("2D_Cutting_Stock")
@@ -11,38 +11,19 @@ path = "path/to/order.csv"
 # Factory settings
 #TODO IMPORT FROM PREPROCESSOR ClASS
 
-L_min = 700  # Minimum panel length
-L_max = 3100  # Maximum panel length
-n_s_max = 1  # Maximum number of stock sizes
-n_w_max = 1  # Maximum number of widths
-n_i_max = 2  # Maximum number of items per pattern
-one_group = False  # Only one-groups are allowed
-W = [1200]  # Set of w available stock widths
+order = Order("Input_data.ods", 7)
 
-# I: item types with their Width, Length, and Demand
-I = [
-    [230, 250, 600],
-    [230, 2140, 600],
-    [290, 2140, 600],
-    [310, 340, 600],
-    [310, 340, 600],
-    [310, 1040, 600],
-    [310, 1040, 600],
-    [380, 1040, 600],
-    [380, 1040, 600],
-    [460, 470, 220],
-    [460, 1040, 220],
-    [480, 570, 600],
-    [510, 1040, 220],
-    [840, 840, 220],
-    [840, 840, 270],
-    [840, 1860, 220],
-    [840, 1860, 270],
-    [880, 1860, 220],
-    [880, 1860, 270]
-]
+L_min = order.L_min  # Minimum panel length
+L_max = order.L_max  # Maximum panel length
+n_s_max = order.n_s_max  # Maximum number of stock sizes
+n_w_max = order.n_w_max  # Maximum number of widths
+n_i_max = order.n_i_max  # Maximum number of items per pattern
+one_group = order.one_group  # Only one-groups are allowed
+W = order.W  # Set of w available stock widths
+I = order.I  # I: item types with their Width, Length, and Demand
 
-# Sets and parameters
+
+# SETS AND PARAMETERS
 
 # Potential stocks J of dimensions |W| * n_s_max
 # This is essentially a matrix of all x_j
@@ -53,9 +34,9 @@ J = np.zeros((len(W), n_s_max))
 # Subsets of I compatible with stock size j (C_j)
 # Although referring to the J matrix, it only depends on W values.
 # given a j at index J[idx, 0], ..., J[idx, n] --> C_j[idx] forall n
-C_j = C_j_generator()
+C_j = order.C_j_generator()
 
-a_ic = [a_ic_generator(i, c) for i in range(len(I)) for c in range(2**len(I)+1)]
+a_ic = [order.a_ic_generator(i, c) for i in range(len(I)) for c in range(2**len(I)+1)]
 a_ic = np.reshape(a_ic, (len(I), 2**len(I)+1))
 
 # dictionary with triplet (c, idx_j, k) where c I_c, idx_j J.shape[0], k stock size
@@ -68,24 +49,24 @@ Delta_j = {}
 
 for idx in range(J.shape[0]):
     for c in C_j[idx]:
-        (_kmin_cj, _kmax_cj, _lmin_cjk) = optimised_stocksize_variables(c, W[idx])
+        (_kmin_cj, _kmax_cj, _lmin_cjk) = order.optimised_stocksize_variables(c, W[idx])
 
         lmin_cjk.update(_lmin_cjk)
         K_cj[(c, idx)] = list(range(_kmin_cj, _kmax_cj+1))
 
-# Pre-processing and Model Dimensions Reductions
+# PRE-PROCESSING AND MODEL DIMENSIONS REDUCTION
 
-# # Proposition 1: Generalised not just for k-1 but for the biggest k' smaller than k
+# Proposition 1: Generalised not just for k-1 but for the biggest k' smaller than k
 for idx in range(J.shape[0]):
     for c in C_j[idx]:
         for k in K_cj[c, idx]:
             if k == min(K_cj[c, idx]):
                 continue
-            # k_prev = max((x for x in K_cj[c, idx] if x < k))
-            if lmin_cjk[c, idx, k-1] == lmin_cjk[c, idx, k]:
+            k_prev = max((x for x in K_cj[c, idx] if x < k))
+            if lmin_cjk[c, idx, k_prev] == lmin_cjk[c, idx, k]:
                 K_cj[c, idx].remove(k)
 
-# # Proposition 2
+# Proposition 2: Substituting I_c with |I_c| cutting pattern with lower lower bounds
 for idx in range(J.shape[0]):
     for c in C_j[idx]:
         c_primes = sorted([1 << i for i in range(c.bit_length()) if c & (1 << i)], reverse=True)
@@ -99,7 +80,6 @@ for idx in range(J.shape[0]):
                         k_i[c_prime] = min(k_i.get(c_prime, k_prime), k_prime)
 
             if len(k_i) == len(c_primes) and sum(k_i.values()) <= k:
-                print(k_i, c_primes, sum(k_i.values()), k)
                 K_cj[c, idx].remove(k)
 
 
@@ -108,7 +88,7 @@ for idx in range(J.shape[0]):
     best_Delta = 32767
     for c_1 in C_j[idx]:
         for c_2 in C_j[idx]:
-            if c_1 == c_2:
+            if c_1 & c_2 > 0:
                 continue
             K_cj_1 = K_cj[(c_1, idx)]
             K_cj_2 = K_cj[(c_2, idx)]
@@ -184,7 +164,8 @@ x_j = model.addVars(
      ],
     vtype=GRB.CONTINUOUS,
     lb=0,
-    name="x_j")
+    name="x_j"
+)
 
 # y_{cjk}
 # Auxiliary continuous variable needed to linearise the product x_j*\gamma_{cjk} for j \in J, c \in C, k \in K_{cj}.
@@ -214,8 +195,8 @@ model.setObjective(
 )
 
 # CONSTRAINTS
+
 # 3. Ensure that each item is allocated to a stock size
-#suppressed IDE warning
 for i in range(len(I)):
     # noinspection PyTypeChecker
     model.addConstr(

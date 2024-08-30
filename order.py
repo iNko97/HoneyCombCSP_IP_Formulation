@@ -7,18 +7,24 @@ import pandas as pd
 
 class Order:
     
-    def __init__(self, datasheet):
+    def __init__(self, datasheet, order_number):
+        self.order_sheet = pd.read_excel(datasheet, engine="odf", sheet_name=f'O{order_number}')
+        self.param_sheet = pd.read_excel(datasheet, engine="odf", sheet_name='param')
+
         self.L_min = 700  # Minimum panel length
         self.L_max = 3100  # Maximum panel length
-        self.n_s_max = 2  # Maximum number of stock sizes
-        self.n_w_max = 2  # Maximum number of widths
-        self.W = [1200, 1400, 1550, 1600]  # Set of w available stock widths
-        number = input("Scegli il numero dell'ordine (da 1 a 8)")
-        self.sheet = pd.read_excel(datasheet, number)
-        self.Width = self.sheet['Width']
-        self.Length = self.sheet['Length']
-        self.Demand = self.sheet['Demand']
-        self.I = [self.Width, self.Length,self.Demand]
+        self.n_s_max = 1  # Maximum number of stock sizes
+        self.n_w_max = 1  # Maximum number of widths
+        self.n_i_max = 2  # Maximum number of items per pattern
+        self.one_group = False  # Only one-groups are allowed
+        self.W = [1200]  # Set of w available stock widths
+
+        self.Width = self.order_sheet['Width']
+        self.Length = self.order_sheet['Length']
+        self.Demand = self.order_sheet['Demand']
+
+        self.I = [[self.Width[i], self.Length[i], self.Demand[i]] for i in range(len(self.Width))]
+        print(self.I)
 
     # Returns the I subset corresponding to a specified index.
     def powerset_at_index(self, index):
@@ -70,14 +76,14 @@ class Order:
 
         return valid_combinations
 
-    def is_dominated(new_combo, valid_combinations):
+    def is_dominated(self, new_combo, valid_combinations):
         for combination in valid_combinations:
             # Check if combo dominates new_combo
             if all(combination[i] >= new_combo[i] for i in range(len(new_combo))):
                 return True
         return False
 
-    def remove_dominated(valid_combinations, new_combo):
+    def remove_dominated(self, valid_combinations, new_combo):
         return [combination for combination in valid_combinations
                 if not all(new_combo[i] >= combination[i] for i in range(len(combination)))]
 
@@ -136,15 +142,20 @@ class Order:
         C_j = [[] for _ in range(len(self.W))]
         for idx, width in enumerate(self.W):
             for index in range(1, 2**len(self.I)+1):
+                # Check that n_i_max is respected
+                if bin(index).count('1') > self.n_i_max:
+                    continue
                 subset = self.powerset_at_index(index)
+                # Check that One Group policy is respected
+                if self.one_group and any(item != subset[0][1] for item in subset):
+                    continue
                 total_width = sum(item[0] for item in subset)
-
                 if total_width <= width:
                     C_j[idx].append(index)
         return C_j
 
     # Checks whether item i is in index c
-    def a_ic_generator(i, c):
+    def a_ic_generator(self, i, c):
         return 1 if bool(c & (1 << i)) else 0
 
 

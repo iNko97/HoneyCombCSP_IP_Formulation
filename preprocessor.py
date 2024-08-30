@@ -159,7 +159,6 @@ def C_j_generator():
             if one_group and any(item != subset[0][1] for item in subset):
                 continue
             total_width = sum(item[0] for item in subset)
-
             if total_width <= width:
                 C_j[idx].append(index)
     return C_j
