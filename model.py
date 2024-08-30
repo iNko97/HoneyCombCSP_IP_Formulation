@@ -115,6 +115,8 @@ for (c, idx, k), value in lmin_cjk.items():
     current_product = k * W[idx] * value
     A_c[c] = min(A_c.get(c, current_product), current_product)
 
+n_c_asterisk = order.best_nc
+
 # DECISION VARIABLES
 
 # \alpha_{cj} 1 if the subset of item types I_c is assigned to stock size j, 0 otherwise for j \in J, c \in C
@@ -329,9 +331,9 @@ if model.status == GRB.OPTIMAL:
                 for c in C_j[idx]:
                     if alpha_cj[c, idx, n].x > 0.5:
                         components = [i for i in range(len(I)) if c & (1 << (len(I) - 1 - i))]
-                        print(f"  Items number {components}:")
                         for k in K_cj[(c, idx)]:
                             if gamma_cjk[c, idx, n, k].x > 0.5:
                                 print(f"    {k} panels, y_cjk = {y_cjk[c, idx, n, k].x}")
+                                print(f"  Items number {components} with rows {n_c_asterisk[(c, idx, k)]}:")
 else:
     print("No optimal solution found.")

@@ -49,6 +49,8 @@ class Order:
         self.Demand = self.order_sheet['Demand']  # Individual item Demand
         self.Items = [[int(self.Width[i]), int(self.Length[i]), int(self.Demand[i])] for i in range(len(self.Width))]
 
+        self.best_nc = {}
+
 
     # Returns the I subset corresponding to a specified index.
     def powerset_at_index(self, index):
@@ -135,15 +137,18 @@ class Order:
                 maximum_item_minimum_stock_size_length = max(item_minimum_stock_size_length)
                 if maximum_item_minimum_stock_size_length > self.L_max:
                     print(
-                        f"Infeasible to meet the demand of I_{index} with {k} panels of width {_width} with row distribution of {n_c}")
+                        f"Infeasible to meet the demand of I_{index} with {k} panels of width {_width} with row distribution of {n_c}"
+                    )
                 else:
                     if best_minimum_stock_size_length.get((index, self.available_widths.index(_width), k),
                                                         32767) > maximum_item_minimum_stock_size_length > self.L_min:
                         best_minimum_stock_size_length[(index, self.available_widths.index(_width), k)] = maximum_item_minimum_stock_size_length
+                        self.best_nc[(index, self.available_widths.index(_width), k)] = n_c
                         best_minimum_stock_size = _minimum_stock_size
                         best_maximum_stock_size = _maximum_stock_size
                     elif maximum_item_minimum_stock_size_length < self.L_min:
                         best_minimum_stock_size_length[(index, self.available_widths.index(_width), k)] = self.L_min
+                        self.best_nc[(index, self.available_widths.index(_width), k)] = n_c
                         best_minimum_stock_size = _minimum_stock_size
                         best_maximum_stock_size = _maximum_stock_size
         return best_minimum_stock_size, best_maximum_stock_size, best_minimum_stock_size_length
