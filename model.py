@@ -1,28 +1,46 @@
 import gurobipy as gp
 from gurobipy import GRB
 import numpy as np
-from order import Order, a_ic_generator
+from preprocessor import C_j_generator, a_ic_generator, optimised_stocksize_variables, powerset_at_index
 
 # Initialize model
-path = "Input_data.ods"
-order_number = 7
-
 model = gp.Model("2D_Cutting_Stock")
 
+path = "path/to/order.csv"
+
 # Factory settings
-order = Order(path, order_number)
+#TODO IMPORT FROM PREPROCESSOR ClASS
 
-L_min = order.L_min  # Minimum panel length
-L_max = order.L_max  # Maximum panel length
-n_s_max = order.n_s_max  # Maximum number of stock sizes
-n_w_max = order.n_w_max  # Maximum number of widths
-n_i_max = order.n_i_max  # Maximum number of items per pattern
-one_group = order.one_group  # Only one-groups are allowed
-W = order.available_widths  # Set of w available stock widths
-I = order.Items  # I: item types with their Width, Length, and Demand
+L_min = 700  # Minimum panel length
+L_max = 3100  # Maximum panel length
+n_s_max = 2  # Maximum number of stock sizes
+n_w_max = 2  # Maximum number of widths
+W = [1200, 1400, 1550, 1600]  # Set of available stock widths
 
+# I: item types with their Width, Length, and Demand
+I = [
+    [230, 250, 600],
+    [230, 2140, 600],
+    [290, 2140, 600],
+    [310, 340, 600],
+    [310, 340, 600],
+    [310, 1040, 600],
+    [310, 1040, 600],
+    [380, 1040, 600],
+    [380, 1040, 600],
+    [460, 470, 220],
+    [460, 1040, 220],
+    [480, 570, 600],
+    [510, 1040, 220],
+    [840, 840, 220],
+    [840, 840, 270],
+    [840, 1860, 220],
+    [840, 1860, 270],
+    [880, 1860, 220],
+    [880, 1860, 270]
+]
 
-# SETS AND PARAMETERS
+# Sets and parameters
 
 # Potential stocks J of dimensions |W| * n_s_max
 # This is essentially a matrix of all x_j
@@ -33,81 +51,25 @@ J = np.zeros((len(W), n_s_max))
 # Subsets of I compatible with stock size j (C_j)
 # Although referring to the J matrix, it only depends on W values.
 # given a j at index J[idx, 0], ..., J[idx, n] --> C_j[idx] forall n
-C_j = order.C_j_generator()
+C_j = C_j_generator()
 
-a_ic = [a_ic_generator(i, c) for i in range(len(I)) for c in range(2 ** len(I) + 1)]
+a_ic = [a_ic_generator(i, c) for i in range(len(I)) for c in range(2**len(I)+1)]
 a_ic = np.reshape(a_ic, (len(I), 2**len(I)+1))
 
 # dictionary with triplet (c, idx_j, k) where c I_c, idx_j J.shape[0], k stock size
 lmin_cjk = {}
-# dictionary with tuple (c, idx_j) : list(range(kmin_cj, ..., kmax_cj))
-K_cj = {}
-
-#  dictionary with (idx) : Delta_j, that is the minimum difference between two lmin_cjk
-Delta_j = {}
+# dictionary with tuple (c, idx_j) where c I_c, idx_j J.shape[0]
+kmin_cj = {}
+# dictionary with tuple (c, idx_j) where c I_c, idx_j J.shape[0]
+kmax_cj = {}
 
 for idx in range(J.shape[0]):
     for c in C_j[idx]:
-        (_kmin_cj, _kmax_cj, _lmin_cjk) = order.optimised_stocksize_variables(c, W[idx])
+        (_kmin_cj, _kmax_cj, _lmin_cjk) = optimised_stocksize_variables(c, W[idx])
 
         lmin_cjk.update(_lmin_cjk)
-        K_cj[(c, idx)] = list(range(_kmin_cj, _kmax_cj+1))
-
-# PRE-PROCESSING AND MODEL DIMENSIONS REDUCTION
-
-# Proposition 1: Generalised not just for k-1 but for the biggest k' smaller than k
-for idx in range(J.shape[0]):
-    for c in C_j[idx]:
-        for k in K_cj[c, idx]:
-            if k == min(K_cj[c, idx]):
-                continue
-            k_prev = max((x for x in K_cj[c, idx] if x < k))
-            if lmin_cjk[c, idx, k_prev] == lmin_cjk[c, idx, k]:
-                K_cj[c, idx].remove(k)
-
-# Proposition 2: Substituting I_c with |I_c| cutting pattern with lower lower bounds
-for idx in range(J.shape[0]):
-    for c in C_j[idx]:
-        c_primes = sorted([1 << i for i in range(c.bit_length()) if c & (1 << i)], reverse=True)
-        if len(c_primes) == 1:
-            continue
-        for k in K_cj[c, idx]:
-            k_i = {}
-            for c_prime in c_primes:
-                for k_prime in K_cj[c_prime, idx]:
-                    if lmin_cjk[c_prime, idx, k_prime] <= lmin_cjk[c, idx, k]:
-                        k_i[c_prime] = min(k_i.get(c_prime, k_prime), k_prime)
-
-            if len(k_i) == len(c_primes) and sum(k_i.values()) <= k:
-                K_cj[c, idx].remove(k)
-
-
-# \Delta_j, the minimum length difference between two different values of lmin_cjk for a stock j
-for idx in range(J.shape[0]):
-    best_Delta = 32767
-    for c_1 in C_j[idx]:
-        for c_2 in C_j[idx]:
-            if c_1 & c_2 > 0:
-                continue
-            K_cj_1 = K_cj[(c_1, idx)]
-            K_cj_2 = K_cj[(c_2, idx)]
-            for k_1 in K_cj_1:
-                for k_2 in K_cj_2:
-                    diff = abs(lmin_cjk[(c_1, idx, k_1)] - lmin_cjk[(c_2, idx, k_2)])
-                    if diff < best_Delta:
-                        best_Delta = diff
-                        if best_Delta == 0:
-                            break
-                else:
-                    continue
-                break
-            else:
-                continue
-            break
-        else:
-            continue
-        break
-    Delta_j[idx] = best_Delta
+        kmin_cj[(c, idx)] = _kmin_cj
+        kmax_cj[(c, idx)] = _kmax_cj
 
 
 # DECISION VARIABLES
@@ -140,7 +102,7 @@ gamma_cjk = model.addVars(
      for idx in range(J.shape[0])
      for n in range(J.shape[1])
      for c in C_j[idx]
-     for k in K_cj[(c, idx)]
+     for k in range(kmin_cj[(c, idx)], kmax_cj[(c, idx)] + 1)
      ],
     vtype=GRB.BINARY,
     name="gamma_cjk"
@@ -163,8 +125,7 @@ x_j = model.addVars(
      ],
     vtype=GRB.CONTINUOUS,
     lb=0,
-    name="x_j"
-)
+    name="x_j")
 
 # y_{cjk}
 # Auxiliary continuous variable needed to linearise the product x_j*\gamma_{cjk} for j \in J, c \in C, k \in K_{cj}.
@@ -174,7 +135,7 @@ y_cjk = model.addVars(
      for idx in range(J.shape[0])
      for n in range(J.shape[1])
      for c in C_j[idx]
-     for k in K_cj[(c, idx)]],
+     for k in range(kmin_cj[(c, idx)], kmax_cj[(c, idx)] + 1)],
     vtype=GRB.CONTINUOUS,
     lb=0,
     name="y_cjk"
@@ -188,14 +149,14 @@ model.setObjective(
         for idx in range(J.shape[0])
         for n in range(J.shape[1])
         for c in C_j[idx]
-        for k in K_cj[(c, idx)]
+        for k in range(kmin_cj[(c, idx)], kmax_cj[(c, idx)] + 1)
     ),
     GRB.MINIMIZE
 )
 
 # CONSTRAINTS
-
 # 3. Ensure that each item is allocated to a stock size
+#suppressed IDE warning
 for i in range(len(I)):
     # noinspection PyTypeChecker
     model.addConstr(
@@ -232,7 +193,7 @@ for idx in range(J.shape[0]):
             model.addConstr(
                 gp.quicksum(
                     gamma_cjk[c, idx, n, k]
-                    for k in K_cj[(c, idx)]
+                    for k in range(kmin_cj[(c, idx)], kmax_cj[(c, idx)] + 1)
                     ) == alpha_cj[c, idx, n],
                 name=f"link_gamma_alpha_{c}_{idx}_{n}"
             )
@@ -247,11 +208,11 @@ for idx in range(J.shape[0]):
             model.addConstr(
                 gp.quicksum(
                     lmin_cjk[(c, idx, k)] * gamma_cjk[c, idx, n, k]
-                    for k in K_cj[(c, idx)]
+                    for k in range(kmin_cj[(c, idx)], kmax_cj[(c, idx)] + 1)
                 ) <= x_j[idx, n],
                 name=f"length_bound_7_{c}_{idx}_{n}"
             )
-            for k in K_cj[(c, idx)]:
+            for k in range(kmin_cj[(c, idx)], kmax_cj[(c, idx)] + 1):
                 model.addConstr(
                     y_cjk[c, idx, n, k] <= x_j[idx, n],
                     name=f"link_8_y_x_{c}_{idx}_{n}_{k}"
@@ -295,23 +256,6 @@ model.addConstr(
     name="limit_stock_widths"
 )
 
-# 21. Symmetry breaking constraint for \beta_j
-for idx in range(J.shape[0]):
-    for n in range(0, J.shape[1]-1):
-        model.addConstr(
-                    beta_j[idx, n+1] <= beta_j[idx, n],
-                    name=f"beta_symmetry_{idx}_{n}"
-                )
-
-# 22. Symmetry breaking constraint for \x_j
-for idx in range(J.shape[0]):
-    for n in range(J.shape[1] - 1):
-        model.addConstr(
-                    x_j[idx, n] - x_j[idx, n+1] >= Delta_j[idx] * beta_j[idx, n+1],
-                    name=f"x_symmetry_{idx}_{n}"
-                )
-
-
 # Optimize the model
 model.optimize()
 
@@ -325,9 +269,7 @@ if model.status == GRB.OPTIMAL:
                 for c in C_j[idx]:
                     if alpha_cj[c, idx, n].x > 0.5:
                         print(f"  Subset {format(c, f'0{len(I)}b')}:")
-                        components = [i for i in range(len(I)) if c & (1 << (len(I) - 1 - i))]
-                        print(f"  or {components}:")
-                        for k in K_cj[(c, idx)]:
+                        for k in range(kmin_cj[(c, idx)], kmax_cj[(c, idx)] + 1):
                             if gamma_cjk[c, idx, n, k].x > 0.5:
                                 print(f"    {k} panels, y_cjk = {y_cjk[c, idx, n, k].x}")
 else:
