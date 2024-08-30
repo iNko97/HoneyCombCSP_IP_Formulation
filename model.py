@@ -4,7 +4,7 @@ import numpy as np
 from order import Order, a_ic_generator
 
 # Initialize model
-path = "Input_data.ods"
+path = "./Data/Input_data.ods"
 order_number = 7
 
 model = gp.Model("2D_Cutting_Stock")
