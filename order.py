@@ -5,33 +5,57 @@ import pandas as pd
 # Factory settings
 #TODO: IMPORT FROM CSV
 
+def is_dominated(new_combo, valid_combinations):
+    for combination in valid_combinations:
+        # Check if combo dominates new_combo
+        if all(combination[i] >= new_combo[i] for i in range(len(new_combo))):
+            return True
+    return False
+
+
+def remove_dominated(valid_combinations, new_combo):
+    return [combination for combination in valid_combinations
+            if not all(new_combo[i] >= combination[i] for i in range(len(combination)))]
+
+# Checks whether item i is in index c
+def a_ic_generator(i, c):
+    return 1 if bool(c & (1 << i)) else 0
+
+
 class Order:
     
     def __init__(self, datasheet, order_number):
-        self.order_sheet = pd.read_excel(datasheet, engine="odf", sheet_name=f'O{order_number}')
-        self.param_sheet = pd.read_excel(datasheet, engine="odf", sheet_name='param')
+        self.order_sheet = pd.read_excel(datasheet,
+                                         engine="odf",
+                                         sheet_name=f'O{order_number}',
+                                         dtype={'Item': None, 'Width': np.int16, 'Length': np.int16, 'Demand': np.int16}
+                                         )
+        self.param_sheet = pd.read_excel(datasheet,
+                                         engine="odf",
+                                         sheet_name='param'
+                                         )
 
-        self.L_min = 700  # Minimum panel length
-        self.L_max = 3100  # Maximum panel length
-        self.n_s_max = 1  # Maximum number of stock sizes
-        self.n_w_max = 1  # Maximum number of widths
-        self.n_i_max = 2  # Maximum number of items per pattern
-        self.one_group = False  # Only one-groups are allowed
-        self.W = [1200]  # Set of w available stock widths
+        print(self.param_sheet)
+        self.L_min = int(self.param_sheet['lmin'][0])  # Minimum panel length
+        self.L_max = int(self.param_sheet['lmax'][0])  # Maximum panel length
+        self.n_s_max = int(self.param_sheet['n_s_max'][0])  # Maximum number of stock sizes
+        self.n_w_max = int(self.param_sheet['n_w_max'][0])  # Maximum number of widths
+        self.n_i_max = int(self.param_sheet['n_i_max'][0])  # Maximum number of items per pattern
+        self.one_group = bool(self.param_sheet['one_group'][0])  # Only one-groups are allowed
+        self.available_widths = self.param_sheet['widths'].to_list()  # Set of w available stock widths
 
-        self.Width = self.order_sheet['Width']
-        self.Length = self.order_sheet['Length']
-        self.Demand = self.order_sheet['Demand']
+        self.Width = self.order_sheet['Width']  # Individual item width
+        self.Length = self.order_sheet['Length']  # Individual item Length
+        self.Demand = self.order_sheet['Demand']  # Individual item Demand
+        self.Items = [[int(self.Width[i]), int(self.Length[i]), int(self.Demand[i])] for i in range(len(self.Width))]
 
-        self.I = [[self.Width[i], self.Length[i], self.Demand[i]] for i in range(len(self.Width))]
-        print(self.I)
 
     # Returns the I subset corresponding to a specified index.
     def powerset_at_index(self, index):
 
-        binary_repr = format(index, f'0{len(self.I)}b')
+        binary_repr = format(index, f'0{len(self.Items)}b')
 
-        subset = [self.I[i] for i in range(len(self.I)) if binary_repr[i] == '1']
+        subset = [self.Items[i] for i in range(len(self.Items)) if binary_repr[i] == '1']
 
         return subset
 
@@ -39,11 +63,11 @@ class Order:
     def find_indexes_with_element(self, element):
         indexes = []
 
-        if element not in self.I:
+        if element not in self.Items:
             return []
 
-        element_idx = self.I.index(element)
-        n = len(self.I)
+        element_idx = self.Items.index(element)
+        n = len(self.Items)
 
         for combination in range(2 ** (n - 1)):
 
@@ -70,22 +94,11 @@ class Order:
 
             if _total_width <= _w_max:
                 # Check if the new combination is dominated
-                if not self.is_dominated(combination, valid_combinations):
-                    valid_combinations = self.remove_dominated(valid_combinations, combination)
+                if not is_dominated(combination, valid_combinations):
+                    valid_combinations = remove_dominated(valid_combinations, combination)
                     valid_combinations.append(combination)
 
         return valid_combinations
-
-    def is_dominated(self, new_combo, valid_combinations):
-        for combination in valid_combinations:
-            # Check if combo dominates new_combo
-            if all(combination[i] >= new_combo[i] for i in range(len(new_combo))):
-                return True
-        return False
-
-    def remove_dominated(self, valid_combinations, new_combo):
-        return [combination for combination in valid_combinations
-                if not all(new_combo[i] >= combination[i] for i in range(len(combination)))]
 
     # returns kmin_{cj}, kmax_{cj}, lmin_{cjk}
     def optimised_stocksize_variables(self, index, _width):
@@ -124,13 +137,13 @@ class Order:
                     print(
                         f"Infeasible to meet the demand of I_{index} with {k} panels of width {_width} with row distribution of {n_c}")
                 else:
-                    if best_minimum_stock_size_length.get((index, self.W.index(_width), k),
+                    if best_minimum_stock_size_length.get((index, self.available_widths.index(_width), k),
                                                         32767) > maximum_item_minimum_stock_size_length > self.L_min:
-                        best_minimum_stock_size_length[(index, self.W.index(_width), k)] = maximum_item_minimum_stock_size_length
+                        best_minimum_stock_size_length[(index, self.available_widths.index(_width), k)] = maximum_item_minimum_stock_size_length
                         best_minimum_stock_size = _minimum_stock_size
                         best_maximum_stock_size = _maximum_stock_size
                     elif maximum_item_minimum_stock_size_length < self.L_min:
-                        best_minimum_stock_size_length[(index, self.W.index(_width), k)] = self.L_min
+                        best_minimum_stock_size_length[(index, self.available_widths.index(_width), k)] = self.L_min
                         best_minimum_stock_size = _minimum_stock_size
                         best_maximum_stock_size = _maximum_stock_size
         return best_minimum_stock_size, best_maximum_stock_size, best_minimum_stock_size_length
@@ -139,9 +152,9 @@ class Order:
     # Although referring to the J matrix, it only depends on W values.
     # J[idx, :] --> C_j[idx]
     def C_j_generator(self):
-        C_j = [[] for _ in range(len(self.W))]
-        for idx, width in enumerate(self.W):
-            for index in range(1, 2**len(self.I)+1):
+        C_j = [[] for _ in range(len(self.available_widths))]
+        for idx, width in enumerate(self.available_widths):
+            for index in range(1, 2 ** len(self.Items) + 1):
                 # Check that n_i_max is respected
                 if bin(index).count('1') > self.n_i_max:
                     continue
@@ -154,8 +167,6 @@ class Order:
                     C_j[idx].append(index)
         return C_j
 
-    # Checks whether item i is in index c
-    def a_ic_generator(self, i, c):
-        return 1 if bool(c & (1 << i)) else 0
+
 
 

@@ -1,17 +1,16 @@
 import gurobipy as gp
 from gurobipy import GRB
 import numpy as np
-from order import Order
+from order import Order, a_ic_generator
 
 # Initialize model
+path = "Input_data.ods"
+order_number = 7
+
 model = gp.Model("2D_Cutting_Stock")
 
-path = "path/to/order.csv"
-
 # Factory settings
-#TODO IMPORT FROM PREPROCESSOR ClASS
-
-order = Order("Input_data.ods", 7)
+order = Order(path, order_number)
 
 L_min = order.L_min  # Minimum panel length
 L_max = order.L_max  # Maximum panel length
@@ -19,8 +18,8 @@ n_s_max = order.n_s_max  # Maximum number of stock sizes
 n_w_max = order.n_w_max  # Maximum number of widths
 n_i_max = order.n_i_max  # Maximum number of items per pattern
 one_group = order.one_group  # Only one-groups are allowed
-W = order.W  # Set of w available stock widths
-I = order.I  # I: item types with their Width, Length, and Demand
+W = order.available_widths  # Set of w available stock widths
+I = order.Items  # I: item types with their Width, Length, and Demand
 
 
 # SETS AND PARAMETERS
@@ -36,7 +35,7 @@ J = np.zeros((len(W), n_s_max))
 # given a j at index J[idx, 0], ..., J[idx, n] --> C_j[idx] forall n
 C_j = order.C_j_generator()
 
-a_ic = [order.a_ic_generator(i, c) for i in range(len(I)) for c in range(2**len(I)+1)]
+a_ic = [a_ic_generator(i, c) for i in range(len(I)) for c in range(2 ** len(I) + 1)]
 a_ic = np.reshape(a_ic, (len(I), 2**len(I)+1))
 
 # dictionary with triplet (c, idx_j, k) where c I_c, idx_j J.shape[0], k stock size
