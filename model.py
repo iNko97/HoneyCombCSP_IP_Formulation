@@ -8,6 +8,9 @@ path = "./Data/Input_data.ods"
 order_number = 7
 
 model = gp.Model("2D_Cutting_Stock")
+model.setParam(GRB.Param.MIPFocus, 2)
+model.setParam(GRB.Param.PreDual, 0)
+
 
 # Factory settings
 order = Order(path, order_number)
@@ -87,27 +90,17 @@ for idx in range(J.shape[0]):
     best_Delta = 32767
     for c_1 in C_j[idx]:
         for c_2 in C_j[idx]:
-            if c_1 & c_2 > 0:
+            if c_1 == c_2:
                 continue
             K_cj_1 = K_cj[(c_1, idx)]
             K_cj_2 = K_cj[(c_2, idx)]
             for k_1 in K_cj_1:
                 for k_2 in K_cj_2:
                     diff = abs(lmin_cjk[(c_1, idx, k_1)] - lmin_cjk[(c_2, idx, k_2)])
-                    if diff < best_Delta:
+                    if 0 < diff < best_Delta:
                         best_Delta = diff
-                        if best_Delta == 0:
-                            break
-                else:
-                    continue
-                break
-            else:
-                continue
-            break
-        else:
-            continue
-        break
     Delta_j[idx] = best_Delta
+print(Delta_j)
 
 # A_c lower bound for the area of material used
 A_c = {}
@@ -203,24 +196,23 @@ model.setObjective(
 # CONSTRAINTS
 
 # 3. Ensure that each item is allocated to a stock size
-for i in range(len(I)):
-    # noinspection PyTypeChecker
-    model.addConstr(
-        gp.quicksum(alpha_cj[c, idx, n] * a_ic[i][c]
-                    for idx in range(J.shape[0])
-                    for n in range(J.shape[1])
-                    for c in C_j[idx]) == 1,
-        name=f'link_alpha_a_{i}'
-    )
+model.addConstrs(
+    (gp.quicksum(alpha_cj[c, idx, n] * a_ic[i][c]
+                 for idx in range(J.shape[0])
+                 for n in range(J.shape[1])
+                 for c in C_j[idx]) == 1
+     for i in range(len(I))),
+    name='link_alpha_a'
+)
 
 # 4. Ensure that a stock size is used iff at least 1 item type is assigned to it
-for idx in range(J.shape[0]):
-    for n in range(J.shape[1]):
-        for c in C_j[idx]:
-            model.addConstr(
-                alpha_cj[c, idx, n] <= beta_j[idx, n],
-                name=f"link_alpha_beta_{c}_{idx}_{n}"
-            )
+model.addConstrs(
+    (alpha_cj[c, idx, n] <= beta_j[idx, n]
+     for idx in range(J.shape[0])
+     for n in range(J.shape[1])
+     for c in C_j[idx]),
+    name="link_alpha_beta"
+)
 
 # 5. Ensure the limit on stock sizes is not broken
 model.addConstr(
@@ -233,68 +225,82 @@ model.addConstr(
 )
 
 # 6. Ensure that if a subset I_c is assigned to j, then a k is assigned.
-for idx in range(J.shape[0]):
-    for n in range(J.shape[1]):
-        for c in C_j[idx]:
-            model.addConstr(
-                gp.quicksum(
-                    gamma_cjk[c, idx, n, k]
-                    for k in K_cj[(c, idx)]
-                    ) == alpha_cj[c, idx, n],
-                name=f"link_gamma_alpha_{c}_{idx}_{n}"
-            )
+model.addConstrs(
+    (gp.quicksum(gamma_cjk[c, idx, n, k] for k in K_cj[(c, idx)]) == alpha_cj[c, idx, n]
+     for idx in range(J.shape[0])
+     for n in range(J.shape[1])
+     for c in C_j[idx]),
+    name="link_gamma_alpha"
+)
 
 # 7. Ensure y_cjk and x_j constraints
-# 8. Ensure that the y_cjk respects its length st.
-# 9. Ensure that y_cjk doesn't exceed maximum length
-# 10. Ensure that x_j doesn't exceed maximum length if k panels are being produced.
-for idx in range(J.shape[0]):
-    for n in range(J.shape[1]):
-        for c in C_j[idx]:
-            model.addConstr(
-                gp.quicksum(
-                    lmin_cjk[(c, idx, k)] * gamma_cjk[c, idx, n, k]
-                    for k in K_cj[(c, idx)]
-                ) <= x_j[idx, n],
-                name=f"length_bound_7_{c}_{idx}_{n}"
-            )
-            for k in K_cj[(c, idx)]:
-                model.addConstr(
-                    y_cjk[c, idx, n, k] <= x_j[idx, n],
-                    name=f"link_8_y_x_{c}_{idx}_{n}_{k}"
-                )
-                model.addConstr(
-                    y_cjk[c, idx, n, k] <= L_max * gamma_cjk[c, idx, n, k],
-                    name=f"link_9_y_x_{c}_{idx}_{n}_{k}"
-                )
-                model.addConstr(
-                    x_j[idx, n] - y_cjk[c, idx, n, k] <= L_max * (1 - gamma_cjk[c, idx, n, k]),
-                    name=f"link_10_y_x_{c}_{idx}_{n}_{k}"
-                )
+model.addConstrs(
+    (gp.quicksum(lmin_cjk[(c, idx, k)] * gamma_cjk[c, idx, n, k]
+                 for k in K_cj[(c, idx)]) <= x_j[idx, n]
+     for idx in range(J.shape[0])
+     for n in range(J.shape[1])
+     for c in C_j[idx]),
+    name="length_bound_7"
+)
 
-# 11. Ensure x_j doesn't exceed maximum length for all selected stock sizes j, otherwise 0.
-for idx in range(J.shape[0]):
-    for n in range(J.shape[1]):
-        model.addConstr(
-            L_min * beta_j[idx, n] <= x_j[idx, n],
-            name=f"stock_length_min_{idx}_{n}"
-        )
-        model.addConstr(
-            x_j[idx, n] <= L_max * beta_j[idx, n],
-            name=f"stock_length_max_{idx}_{n}"
-        )
+# 8. Ensure that the y_cjk respects its length st.
+model.addConstrs(
+    (y_cjk[c, idx, n, k] <= x_j[idx, n]
+     for idx in range(J.shape[0])
+     for n in range(J.shape[1])
+     for c in C_j[idx]
+     for k in K_cj[(c, idx)]),
+    name="link_8_y_x"
+)
+
+# 9. Ensure that y_cjk doesn't exceed maximum length
+model.addConstrs(
+    (y_cjk[c, idx, n, k] <= L_max * gamma_cjk[c, idx, n, k]
+     for idx in range(J.shape[0])
+     for n in range(J.shape[1])
+     for c in C_j[idx]
+     for k in K_cj[(c, idx)]),
+    name="link_9_y_x"
+)
+
+# 10. Ensure that x_j doesn't exceed maximum length if k panels are being produced.
+model.addConstrs(
+    (x_j[idx, n] - y_cjk[c, idx, n, k] <= L_max * (1 - gamma_cjk[c, idx, n, k])
+     for idx in range(J.shape[0])
+     for n in range(J.shape[1])
+     for c in C_j[idx]
+     for k in K_cj[(c, idx)]),
+    name="link_10_y_x"
+)
+
+# 11. Ensure x_j doesn't exceed minimum length for all selected stock sizes j, otherwise 0.
+model.addConstrs(
+    (L_min * beta_j[idx, n] <= x_j[idx, n]
+     for idx in range(J.shape[0])
+     for n in range(J.shape[1])),
+    name="stock_length_min"
+)
+# 11b. Ensure x_j doesn't exceed maximum length for all selected stock sizes j, otherwise 0.
+model.addConstrs(
+    (x_j[idx, n] <= L_max * beta_j[idx, n]
+     for idx in range(J.shape[0])
+     for n in range(J.shape[1])),
+    name="stock_length_max"
+)
 
 # 12. Ensure a stock size width is used iff used at least one time.
-for idx in range(J.shape[0]):
-    model.addConstr(
-        gp.quicksum(beta_j[idx, n] for n in range(J.shape[1])) >= delta_w[idx],
-        name=f"link_delta_beta_{idx}"
-    )
-    for n in range(J.shape[1]):
-        model.addConstr(
-            beta_j[idx, n] <= delta_w[idx],
-            name=f"link_beta_delta_{idx}_{n}"
-        )
+model.addConstrs(
+    (gp.quicksum(beta_j[idx, n] for n in range(J.shape[1])) >= delta_w[idx]
+     for idx in range(J.shape[0])),
+    name="link_delta_beta"
+)
+
+model.addConstrs(
+    (beta_j[idx, n] <= delta_w[idx]
+     for idx in range(J.shape[0])
+     for n in range(J.shape[1])),
+    name="link_beta_delta"
+)
 
 # 13. Limit the number of stock widths
 model.addConstr(
@@ -303,20 +309,21 @@ model.addConstr(
 )
 
 # 21. Symmetry breaking constraint for \beta_j
-for idx in range(J.shape[0]):
-    for n in range(0, J.shape[1]-1):
-        model.addConstr(
-                    beta_j[idx, n+1] <= beta_j[idx, n],
-                    name=f"beta_symmetry_{idx}_{n}"
-                )
+model.addConstrs(
+    (beta_j[idx, n+1] <= beta_j[idx, n]
+     for idx in range(J.shape[0])
+     for n in range(J.shape[1] - 1)),
+    name="beta_symmetry"
+)
 
-# 22. Symmetry breaking constraint for \x_j
-for idx in range(J.shape[0]):
-    for n in range(J.shape[1] - 1):
-        model.addConstr(
-                    x_j[idx, n] - x_j[idx, n+1] >= Delta_j[idx] * beta_j[idx, n+1],
-                    name=f"x_symmetry_{idx}_{n}"
-                )
+# 22. Symmetry breaking constraints for \x_j
+model.addConstrs(
+    (x_j[idx, n] - x_j[idx, n+1] >= Delta_j[idx] * beta_j[idx, n+1]
+     for idx in range(J.shape[0])
+     for n in range(J.shape[1] - 1)),
+    name="x_symmetry"
+)
+
 
 # Optimize the model
 model.optimize()
