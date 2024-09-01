@@ -5,7 +5,7 @@ from order import Order
 # Initialize model
 path = "./Data/Input_data.ods"
 order_number = 7
-scenario = (2, 1)
+scenario = (3, 1)
 
 model = gp.Model("2D_Cutting_Stock")
 model.setParam(GRB.Param.MIPFocus, 2)
@@ -109,7 +109,6 @@ for idx in range(J[0]):
                     if 0 < diff < best_Delta:
                         best_Delta = diff
     Delta_j[idx] = best_Delta
-print(Delta_j)
 
 # A_c lower bound for the area of material used
 print("Calculating A_c lower bounds.")
