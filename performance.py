@@ -3,20 +3,17 @@ import matplotlib.pyplot as plt
 import model
 import numpy
 
-class Order:
-    def __init__(self, datasheet, number):
-        self.sheet = pd.read_excel(datasheet, number)
-        self.Width = self.sheet['Width']
-        self.Length = self.sheet['Length']
-        self.Demand = self.sheet['Demand']
-ordernumbers = [7,8,10,17,20,22,23,24]
+ordernumbers = [7,8]
+performanceAREA = []
 performanceGAP = []
 performanceTIME= []
-result = [0.5,100]
-for a in range(8):
-    performanceGAP.append(result[0])
-    performanceTIME.append(result[1])
-datapath = "Data/input_data.ods"
+result = []
+for a in ordernumbers:
+    result = model.Optimize(a,1,1)
+    performanceGAP.append(result[1])
+    performanceTIME.append(round(result[2],2))
+    performanceAREA.append(int(result[0]/1000000))
+"""datapath = "Data/input_data.ods"
 datasheet = pd.ExcelFile(datapath, engine="odf")
 orders = []
 a= 1
@@ -38,16 +35,16 @@ demands = []
 for itemtype in orders:
     demands.append(itemtype.Demand)
 plt.boxplot(demands)
-#plt.show()
+#plt.show() """
 fig, ax = plt.subplots()
 
 # hide axes
 fig.patch.set_visible(False)
 ax.axis('off')
 ax.axis('tight')
-performance = [performanceGAP,performanceTIME]
+performance = [performanceAREA,performanceGAP,performanceTIME]
 performance = numpy.array(performance).transpose()
-df = pd.DataFrame(data=performance,columns=['GAP','TIME'])
+df = pd.DataFrame(data=performance,columns=['AREA','GAP','TIME'])
 #df.rename({"GAP","TIME"})
 ax.table(cellText=df.values, colLabels=df.columns, loc='center')
 
