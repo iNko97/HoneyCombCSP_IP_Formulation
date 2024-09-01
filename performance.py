@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import model
 import numpy
 
-ordernumbers = [7,8]
+ordernumbers = [7,8,10,17,20,22,23,24]
 performanceAREA = []
 performanceGAP = []
 performanceTIME= []
