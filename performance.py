@@ -7,9 +7,11 @@ ordernumbers = [7,8,10,17,20,22,23,24]
 performanceAREA = []
 performanceGAP = []
 performanceTIME= []
+ordernum =[]
 result = []
 for a in ordernumbers:
     result = model.Optimize(a,1,1)
+    ordernum.append(a)
     performanceGAP.append(result[1])
     performanceTIME.append(round(result[2],2))
     performanceAREA.append(int(result[0]/1000000))
@@ -37,15 +39,12 @@ for itemtype in orders:
 plt.boxplot(demands)
 #plt.show() """
 fig, ax = plt.subplots()
-
-# hide axes
 fig.patch.set_visible(False)
 ax.axis('off')
 ax.axis('tight')
-performance = [performanceAREA,performanceGAP,performanceTIME]
+performance = [ordernum,performanceAREA,performanceGAP,performanceTIME]
 performance = numpy.array(performance).transpose()
-df = pd.DataFrame(data=performance,columns=['AREA','GAP','TIME'])
-#df.rename({"GAP","TIME"})
+df = pd.DataFrame(data=performance,columns=['ORDER','AREA','GAP','TIME'])
 ax.table(cellText=df.values, colLabels=df.columns, loc='center')
 
 fig.tight_layout()
