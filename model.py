@@ -1,11 +1,11 @@
 import gurobipy as gp
 from gurobipy import GRB
-import numpy as np
 from order import Order
 
 # Initialize model
 path = "./Data/Input_data.ods"
-order_number = 10
+order_number = 7
+scenario = (2, 1)
 
 model = gp.Model("2D_Cutting_Stock")
 model.setParam(GRB.Param.MIPFocus, 2)
@@ -15,7 +15,7 @@ model.setParam('TimeLimit', 1800)
 
 
 # Factory settings
-order = Order(path, order_number)
+order = Order(path, scenario, order_number)
 
 L_min = order.L_min  # Minimum panel length
 L_max = order.L_max  # Maximum panel length
@@ -53,9 +53,9 @@ Delta_j = {}
 
 for idx in range(J[0]):
     for c in C_j[idx]:
-        (_kmin_cj, _kmax_cj, _lmin_cjk) = order.optimised_stocksize_variables(c, W[idx])
+        (_K_cj, _lmin_cjk) = order.optimised_stocksize_variables(c, W[idx])
         lmin_cjk.update(_lmin_cjk)
-        K_cj[(c, idx)] = list(range(_kmin_cj, _kmax_cj+1))
+        K_cj[(c, idx)] = _K_cj
 
 # PRE-PROCESSING AND MODEL DIMENSIONS REDUCTION
 
@@ -96,7 +96,7 @@ for idx in range(J[0]):
 # \Delta_j, the minimum length difference between two different values of lmin_cjk for a stock j
 print("Generating Delta_j.")
 for idx in range(J[0]):
-    best_Delta = 32000
+    best_Delta = L_max
     for c_1 in C_j[idx]:
         for c_2 in C_j[idx]:
             if c_1 & c_2 > 0.5:
@@ -119,6 +119,17 @@ for (c, idx, k), value in lmin_cjk.items():
     A_c[c] = min(A_c.get(c, current_product), current_product)
 
 n_c_asterisk = order.best_nc
+
+# for items in [[1], [2, 16], [3, 17], [4, 11], [5], [6, 15], [7, 18], [8], [9], [10], [12, 19], [13, 14]]:
+#     w = 2
+#     c = 0
+#     for item in items:
+#         bit_position = len(I) - item
+#         c |= (1 << bit_position)
+#     print(items, c)
+#     for k in K_cj[c, w]:
+#         print("     k:", k, lmin_cjk[(c, w, k)], n_c_asterisk[c, w, k])
+
 
 print("Initialising model.")
 # DECISION VARIABLES
@@ -173,7 +184,7 @@ x_j = model.addVars(
      for n in range(J[1])
      ],
     vtype=GRB.CONTINUOUS,
-    lb=0,
+    ub=L_max,
     name="x_j"
 )
 
@@ -188,6 +199,7 @@ y_cjk = model.addVars(
      for k in K_cj[(c, idx)]],
     vtype=GRB.CONTINUOUS,
     lb=0,
+    ub=L_max,
     name="y_cjk"
 )
 
@@ -224,6 +236,19 @@ model.addConstrs(
      for c in C_j[idx]),
     name="link_alpha_beta"
 )
+
+# 4b.
+model.addConstrs(
+    (gp.quicksum(alpha_cj[c, idx, n]
+                 for idx in range(J[0])
+                 for n in range(J[1])
+                 for c in C_j[idx]) >= beta_j[idx, n]
+     for idx in range(J[0])
+     for n in range(J[1])
+     for c in C_j[idx]),
+    name="link_beta_alpha"
+)
+
 
 # 5. Ensure the limit on stock sizes is not broken
 model.addConstr(
@@ -348,10 +373,11 @@ if model.status == GRB.OPTIMAL:
                 print(f"Stock size {idx}, {n}: width = {W[idx]}, length = {x_j[idx, n].x}")
                 for c in C_j[idx]:
                     if alpha_cj[c, idx, n].x > 0.5:
-                        components = [i for i in range(len(I)) if c & (1 << (len(I) - 1 - i))]
+                        binary_rep = f"{c:0{len(I)}b}"
+                        indexes = [i + 1 for i, bit in enumerate(binary_rep) if bit == '1']
                         for k in K_cj[(c, idx)]:
                             if gamma_cjk[c, idx, n, k].x > 0.5:
-                                print(f"    {k} panels of items {components}")
+                                print(f"    {k} panels of items {indexes}")
                                 print(f"        with respectively {n_c_asterisk[(c, idx, k)]} columns.")
 else:
     print("No optimal solution found.")
