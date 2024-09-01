@@ -1,15 +1,17 @@
 import gurobipy as gp
 from gurobipy import GRB
 import numpy as np
-from order import Order, a_ic_generator
+from order import Order
 
 # Initialize model
 path = "./Data/Input_data.ods"
-order_number = 7
+order_number = 10
 
 model = gp.Model("2D_Cutting_Stock")
 model.setParam(GRB.Param.MIPFocus, 2)
 model.setParam(GRB.Param.PreDual, 0)
+model.setParam(GRB.Param.MIPGap, 0)
+model.setParam('TimeLimit', 1800)
 
 
 # Factory settings
@@ -32,45 +34,50 @@ I = order.Items  # I: item types with their Width, Length, and Demand
 # Each row is indexed by available widths.
 # Note how for a certain w, idx = W.index(w),then the set J^w' = J[idx, :]
 J = (len(W), n_s_max)
+a_ic = order.a_ic
+
 
 # Subsets of I compatible with stock size j (C_j)
 # Although referring to the J matrix, it only depends on W values.
 # given a j at index J[idx, 0], ..., J[idx, n] --> C_j[idx] forall n
+print("Generating C_j")
 C_j = order.C_j_generator()
 
-a_ic = [a_ic_generator(i, c) for i in range(len(I)) for c in range(2 ** len(I) + 1)]
-a_ic = np.reshape(a_ic, (len(I), 2**len(I)+1))
-
+print("Generating K_cj and lmin_cjk")
 # dictionary with triplet (c, idx_j, k) where c I_c, idx_j J.shape[0], k stock size
 lmin_cjk = {}
 # dictionary with tuple (c, idx_j) : list(range(kmin_cj, ..., kmax_cj))
 K_cj = {}
-
 #  dictionary with (idx) : Delta_j, that is the minimum difference between two lmin_cjk
 Delta_j = {}
 
 for idx in range(J[0]):
     for c in C_j[idx]:
         (_kmin_cj, _kmax_cj, _lmin_cjk) = order.optimised_stocksize_variables(c, W[idx])
-
         lmin_cjk.update(_lmin_cjk)
         K_cj[(c, idx)] = list(range(_kmin_cj, _kmax_cj+1))
 
 # PRE-PROCESSING AND MODEL DIMENSIONS REDUCTION
 
 # Proposition 1: Generalised not just for k-1 but for the biggest k' smaller than k
+print("Applying Proposition 1.")
 for idx in range(J[0]):
     for c in C_j[idx]:
+        k_to_be_removed = []
         for k in K_cj[c, idx]:
             if k == min(K_cj[c, idx]):
                 continue
             k_prev = max((x for x in K_cj[c, idx] if x < k))
             if lmin_cjk[c, idx, k_prev] == lmin_cjk[c, idx, k]:
-                K_cj[c, idx].remove(k)
+                k_to_be_removed.append(k)
+        for k in k_to_be_removed:
+            K_cj[c, idx].remove(k)
 
 # Proposition 2: Substituting I_c with |I_c| cutting pattern with lower lower bounds
+print("Applying Proposition 2.")
 for idx in range(J[0]):
     for c in C_j[idx]:
+        k_to_be_removed = []
         c_primes = sorted([1 << i for i in range(c.bit_length()) if c & (1 << i)], reverse=True)
         if len(c_primes) == 1:
             continue
@@ -80,17 +87,19 @@ for idx in range(J[0]):
                 for k_prime in K_cj[c_prime, idx]:
                     if lmin_cjk[c_prime, idx, k_prime] <= lmin_cjk[c, idx, k]:
                         k_i[c_prime] = min(k_i.get(c_prime, k_prime), k_prime)
-
             if len(k_i) == len(c_primes) and sum(k_i.values()) <= k:
-                K_cj[c, idx].remove(k)
+                k_to_be_removed.append(k)
+        for k in k_to_be_removed:
+            K_cj[c, idx].remove(k)
 
 
 # \Delta_j, the minimum length difference between two different values of lmin_cjk for a stock j
+print("Generating Delta_j.")
 for idx in range(J[0]):
-    best_Delta = 32767
+    best_Delta = 32000
     for c_1 in C_j[idx]:
         for c_2 in C_j[idx]:
-            if c_1 == c_2:
+            if c_1 & c_2 > 0.5:
                 continue
             K_cj_1 = K_cj[(c_1, idx)]
             K_cj_2 = K_cj[(c_2, idx)]
@@ -103,6 +112,7 @@ for idx in range(J[0]):
 print(Delta_j)
 
 # A_c lower bound for the area of material used
+print("Calculating A_c lower bounds.")
 A_c = {}
 for (c, idx, k), value in lmin_cjk.items():
     current_product = k * W[idx] * value
@@ -110,6 +120,7 @@ for (c, idx, k), value in lmin_cjk.items():
 
 n_c_asterisk = order.best_nc
 
+print("Initialising model.")
 # DECISION VARIABLES
 
 # \alpha_{cj} 1 if the subset of item types I_c is assigned to stock size j, 0 otherwise for j \in J, c \in C
@@ -197,7 +208,7 @@ model.setObjective(
 
 # 3. Ensure that each item is allocated to a stock size
 model.addConstrs(
-    (gp.quicksum(alpha_cj[c, idx, n] * a_ic[i][c]
+    (gp.quicksum(alpha_cj[c, idx, n] * a_ic[(i, c)]
                  for idx in range(J[0])
                  for n in range(J[1])
                  for c in C_j[idx]) == 1

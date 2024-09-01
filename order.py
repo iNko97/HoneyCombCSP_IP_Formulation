@@ -1,5 +1,5 @@
 import numpy as np
-from itertools import product
+from itertools import product, combinations
 import pandas as pd
 
 # Factory settings
@@ -16,10 +16,6 @@ def is_dominated(new_combo, valid_combinations):
 def remove_dominated(valid_combinations, new_combo):
     return [combination for combination in valid_combinations
             if not all(new_combo[i] >= combination[i] for i in range(len(combination)))]
-
-# Checks whether item i is in index c
-def a_ic_generator(i, c):
-    return 1 if bool(c & (1 << i)) else 0
 
 
 class Order:
@@ -50,50 +46,41 @@ class Order:
         self.Items = [[int(self.Width[i]), int(self.Length[i]), int(self.Demand[i])] for i in range(len(self.Width))]
 
         self.best_nc = {}
-
+        print("Generating C")
+        self.C = set()
+        self.C_generator()
+        print("Generating a_ic")
+        self.a_ic = {}
+        self.a_ic_generator()
 
     # Returns the I subset corresponding to a specified index.
     def powerset_at_index(self, index):
-
         binary_repr = format(index, f'0{len(self.Items)}b')
-
         subset = [self.Items[i] for i in range(len(self.Items)) if binary_repr[i] == '1']
-
         return subset
 
     # Returns all the indexes that contain a certain I element
     def find_indexes_with_element(self, element):
         indexes = []
-
         if element not in self.Items:
             return []
 
         element_idx = self.Items.index(element)
         n = len(self.Items)
-
         for combination in range(2 ** (n - 1)):
-
             binary_repr = format(combination, f'0{n - 1}b')
-
             new_binary_repr = binary_repr[:element_idx] + '1' + binary_repr[element_idx:]
-
             indexes.append(int(new_binary_repr, 2))
-
         return indexes
 
     # Returns all possible non-dominated N_c given an i in I_c and a w in W
     def n_c_generator(self, I_c, _w_max):
-
         widths = [item[0] for item in I_c]
-
         max_rows = [_w_max // _width for _width in widths]
-
         possible_combinations = product(*(range(1, mr + 1) for mr in max_rows))
-
         valid_combinations = []
         for combination in possible_combinations:
             _total_width = sum(widths[i] * combination[i] for i in range(len(widths)))
-
             if _total_width <= _w_max:
                 # Check if the new combination is dominated
                 if not is_dominated(combination, valid_combinations):
@@ -146,7 +133,7 @@ class Order:
                         self.best_nc[(index, self.available_widths.index(_width), k)] = n_c
                         best_minimum_stock_size = _minimum_stock_size
                         best_maximum_stock_size = _maximum_stock_size
-                    elif maximum_item_minimum_stock_size_length < self.L_min:
+                    elif maximum_item_minimum_stock_size_length <= self.L_min:
                         best_minimum_stock_size_length[(index, self.available_widths.index(_width), k)] = self.L_min
                         self.best_nc[(index, self.available_widths.index(_width), k)] = n_c
                         best_minimum_stock_size = _minimum_stock_size
@@ -159,10 +146,7 @@ class Order:
     def C_j_generator(self):
         C_j = [[] for _ in range(len(self.available_widths))]
         for idx, width in enumerate(self.available_widths):
-            for index in range(1, 2 ** len(self.Items) + 1):
-                # Check that n_i_max is respected
-                if bin(index).count('1') > self.n_i_max:
-                    continue
+            for index in self.C:
                 subset = self.powerset_at_index(index)
                 # Check that One Group policy is respected
                 if self.one_group and any(item != subset[0][1] for item in subset):
@@ -172,6 +156,24 @@ class Order:
                     C_j[idx].append(index)
         return C_j
 
+    def C_generator(self):
+        for max_items in range(1, self.n_i_max+1):
+            n = 2**len(self.Items)
+            max_bits = n.bit_length()
+            for num_bits in range(max_items, max_bits + 1):
+                for ones_positions in combinations(range(num_bits), max_items):
+                    num = sum(1 << pos for pos in ones_positions)
+                    if num > n:
+                        break
+                    self.C.add(num)
+        self.C = sorted(self.C)
 
-
-
+    # Checks whether item i is in index c
+    def a_ic_generator(self):
+        n = len(self.Items)
+        for c in self.C:
+            for i in range(n): # 0 n-1
+                if bool(c & (1 << i)):
+                    self.a_ic[(n-i-1, c)] = 1
+                else:
+                    self.a_ic[(n-i-1, c)] = 0
