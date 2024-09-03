@@ -3,7 +3,8 @@ import matplotlib.pyplot as plt
 import model
 import numpy
 
-ordernumbers = [7,8,10,17,20,22,23,24]
+#Available: [7,8,10,17,20,22,23,24]
+ordernumbers = [10]
 performanceAREA = []
 performanceGAP = []
 performanceTIME= []
@@ -15,14 +16,14 @@ for scenario in [1,2,3]:
         if scenario==3 and nsmax == 1:
             continue
         for a in ordernumbers:
-            stringa = "Scenario:" + str(scenario) + " NsMax:" + str(nsmax)
+            stringa = "Ordine:" + str(a) + "Scenario:" + str(scenario) + " NsMax:" + str(nsmax)
             print(stringa)
             settings.append(stringa)
-            result = model.Optimize(a,scenario,nsmax)
+            result = model.optimise(a,scenario,nsmax)
             ordernum.append(a)
             performanceGAP.append(round(result[1]*100,2))
             performanceTIME.append(round(result[2],2))
-            performanceAREA.append(int(result[0]/1000000))
+            performanceAREA.append(round(result[0]/1000000))
 """datapath = "Data/input_data.ods"
 datasheet = pd.ExcelFile(datapath, engine="odf")
 orders = []

@@ -3,7 +3,7 @@ from gurobipy import GRB
 from order import Order
 
 
-def optimize(number, scenario_id, n_s_max_id):
+def optimise(number, scenario_id, n_s_max_id):
     # Model Parameters
     path = "./Data/Input_data.ods"
     order_number = number
@@ -12,7 +12,7 @@ def optimize(number, scenario_id, n_s_max_id):
     model.setParam(GRB.Param.MIPFocus, 2)
     model.setParam(GRB.Param.PreDual, 0)
     model.setParam(GRB.Param.MIPGap, 0)
-    model.setParam('TimeLimit', 18)
+    model.setParam('TimeLimit', 1800)
 
     # Factory settings
     order = Order(path, (scenario_id, n_s_max_id), order_number)
@@ -118,16 +118,6 @@ def optimize(number, scenario_id, n_s_max_id):
         A_c[c] = min(A_c.get(c, current_product), current_product)
 
     n_c_asterisk = order.best_nc
-
-    # for items in [[1], [2, 16], [3, 17], [4, 11], [5], [6, 15], [7, 18], [8], [9], [10], [12, 19], [13, 14]]:
-    #     w = 2
-    #     c = 0
-    #     for item in items:
-    #         bit_position = len(I) - item
-    #         c |= (1 << bit_position)
-    #     print(items, c)
-    #     for k in K_cj[c, w]:
-    #         print("     k:", k, lmin_cjk[(c, w, k)], n_c_asterisk[c, w, k])
 
     print("Initialising model.")
     # DECISION VARIABLES
