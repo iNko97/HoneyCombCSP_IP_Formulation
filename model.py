@@ -12,7 +12,6 @@ def Optimize(number, scenario_id, n_s_max_id):
     model.setParam(GRB.Param.MIPGap, 0)
     model.setParam('TimeLimit', 1800)
 
-
     # Factory settings
     order = Order(path, (scenario_id, n_s_max_id), order_number)
 

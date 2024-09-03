@@ -2,9 +2,6 @@ import numpy as np
 from itertools import product, combinations
 import pandas as pd
 
-# Factory settings
-#TODO: IMPORT FROM CSV
-
 def is_dominated(new_combo, valid_combinations):
     for combination in valid_combinations:
         # Check if combo dominates new_combo
