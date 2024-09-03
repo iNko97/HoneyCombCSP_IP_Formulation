@@ -1,11 +1,10 @@
 import gurobipy as gp
 from gurobipy import GRB
 from order import Order
-def Optimize(number,scenarionum,nsmax):
+def Optimize(number, scenario_id, n_s_max_id):
     # Initialize model
     path = "./Data/Input_data.ods"
     order_number = number
-    scenario = (scenarionum, nsmax)
 
     model = gp.Model("2D_Cutting_Stock")
     model.setParam(GRB.Param.MIPFocus, 2)
@@ -15,7 +14,7 @@ def Optimize(number,scenarionum,nsmax):
 
 
     # Factory settings
-    order = Order(path, scenario, order_number)
+    order = Order(path, (scenario_id, n_s_max_id), order_number)
 
     L_min = order.L_min  # Minimum panel length
     L_max = order.L_max  # Maximum panel length
