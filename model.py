@@ -12,7 +12,7 @@ def optimize(number, scenario_id, n_s_max_id):
     model.setParam(GRB.Param.MIPFocus, 2)
     model.setParam(GRB.Param.PreDual, 0)
     model.setParam(GRB.Param.MIPGap, 0)
-    model.setParam('TimeLimit', 1800)
+    model.setParam('TimeLimit', 18)
 
     # Factory settings
     order = Order(path, (scenario_id, n_s_max_id), order_number)
@@ -57,7 +57,7 @@ def optimize(number, scenario_id, n_s_max_id):
 
     # PRE-PROCESSING AND MODEL DIMENSIONS REDUCTION
 
-    # Proposition 1: Generalised not just for k-1 but for the biggest k' smaller than k
+    # Proposition 1: Generalised not just for k-1 but for the biggest k_prime smaller than k
     print("Applying Proposition 1.")
     for idx in range(J[0]):
         for c in C_j[idx]:
@@ -163,7 +163,7 @@ def optimize(number, scenario_id, n_s_max_id):
         name="gamma_cjk"
     )
 
-    # \delta_{w} 1 if at least one stock size in J^{w} is selected, 0 otherwise for w' \in W
+    # \delta_{w} 1 if at least one stock size in J^{w} is selected, 0 otherwise for w_prime \in W
     delta_w = model.addVars(
         [w
          for w in range(len(W))
