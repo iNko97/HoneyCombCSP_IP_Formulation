@@ -6,11 +6,14 @@ import os
 
 def addToCSV(model,ordernum,stringa):
     output_path='Data/result.csv'
+    Gap = model.MIPGap *100
+    Gap = round(Gap,2)
+    GapPerc = str(Gap) + "%"
     performance = {
         "Settings": stringa,
         "Ordine": ordernum,
-        "Area": model.objVal/1000000,
-        "Gap": model.MIPGap,
+        "Area": model.ObjVal/1000000,
+        "Gap": GapPerc,
         "Time": model.Runtime}
     print(performance)
     df = pd.DataFrame([performance])
@@ -23,12 +26,12 @@ performanceGAP = []
 performanceTIME= []
 result = []
 settings = []
-for scenario in [4]:
-    for nsmax in [1]:
+for scenario in [1,2]:
+    for nsmax in [1,2]:
         if scenario==3 and nsmax == 1:
             continue
         for a in ordernumbers:
-            stringa = "Ordine:" + str(a) + "Scenario:" + str(scenario) + " NsMax:" + str(nsmax)
+            stringa ="Scenario:" + str(scenario) + " NsMax:" + str(nsmax)
             print(stringa)
             result = model.optimise(a,scenario,nsmax)
             addToCSV(result,a,stringa)
