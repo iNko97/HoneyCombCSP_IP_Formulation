@@ -58,6 +58,7 @@ def optimize(number, scenario_id, n_s_max_id):
     # PRE-PROCESSING AND MODEL DIMENSIONS REDUCTION
 
     # Proposition 1: Generalised not just for k-1 but for the biggest k_prime smaller than k
+    # Instead of taking k-1, we take the maximum k_prime lower than k. This allows for tighter lower bounds.
     print("Applying Proposition 1.")
     for idx in range(J[0]):
         for c in C_j[idx]:
@@ -91,6 +92,8 @@ def optimize(number, scenario_id, n_s_max_id):
                 K_cj[c, idx].remove(k)
 
     # \Delta_j, the minimum length difference between two different values of lmin_cjk for a stock j
+    # Instead of taking different c_1 and c_2 as suggested, we take c_1 and c_2 with no items in common, as an item may
+    # not be assigned to multiple sock sizes. This allows for larger steps and diminution of the search space.
     print("Generating Delta_j.")
     for idx in range(J[0]):
         best_Delta = L_max
