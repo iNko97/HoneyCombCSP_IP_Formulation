@@ -1,8 +1,10 @@
 import gurobipy as gp
 from gurobipy import GRB
 from order import Order
-def Optimize(number, scenario_id, n_s_max_id):
-    # Initialize model
+
+
+def optimize(number, scenario_id, n_s_max_id):
+    # Model Parameters
     path = "./Data/Input_data.ods"
     order_number = number
 
@@ -19,21 +21,19 @@ def Optimize(number, scenario_id, n_s_max_id):
     L_max = order.L_max  # Maximum panel length
     n_s_max = order.n_s_max  # Maximum number of stock sizes
     n_w_max = order.n_w_max  # Maximum number of widths
-    n_i_max = order.n_i_max  # Maximum number of items per pattern
-    one_group = order.one_group  # Only one-groups are allowed
+    # n_i_max = order.n_i_max  # Maximum number of items per pattern
+    # one_group = order.one_group  # Only one-groups are allowed
     W = order.available_widths  # Set of w available stock widths
     I = order.Items  # I: item types with their Width, Length, and Demand
-
 
     # SETS AND PARAMETERS
 
     # Potential stocks J of dimensions |W| * n_s_max
     # This is essentially a matrix of all x_j
     # Each row is indexed by available widths.
-    # Note how for a certain w, idx = W.index(w),then the set J^w' = J[idx, :]
+    # For a certain width w, if the index idx = W.index(w),then the set J^w' = J[idx, :]
     J = (len(W), n_s_max)
     a_ic = order.a_ic
-
 
     # Subsets of I compatible with stock size j (C_j)
     # Although referring to the J matrix, it only depends on W values.
@@ -90,7 +90,6 @@ def Optimize(number, scenario_id, n_s_max_id):
             for k in k_to_be_removed:
                 K_cj[c, idx].remove(k)
 
-
     # \Delta_j, the minimum length difference between two different values of lmin_cjk for a stock j
     print("Generating Delta_j.")
     for idx in range(J[0]):
@@ -127,17 +126,16 @@ def Optimize(number, scenario_id, n_s_max_id):
     #     for k in K_cj[c, w]:
     #         print("     k:", k, lmin_cjk[(c, w, k)], n_c_asterisk[c, w, k])
 
-
     print("Initialising model.")
     # DECISION VARIABLES
 
     # \alpha_{cj} 1 if the subset of item types I_c is assigned to stock size j, 0 otherwise for j \in J, c \in C
     alpha_cj = model.addVars(
         [(c, idx, n)
-        for idx in range(J[0])
-        for n in range(J[1])
-        for c in C_j[idx]
-        ],
+         for idx in range(J[0])
+         for n in range(J[1])
+         for c in C_j[idx]
+         ],
         vtype=GRB.BINARY,
         name="alpha_cj"
     )
@@ -145,22 +143,22 @@ def Optimize(number, scenario_id, n_s_max_id):
     # \beta_j 1 if stock size j is selected, 0 otherwise for j \in J
     beta_j = model.addVars(
         [(idx, n)
-        for idx in range(J[0])
-        for n in range(J[1])
-        ],
+         for idx in range(J[0])
+         for n in range(J[1])
+         ],
         vtype=GRB.BINARY,
         name="beta_j"
     )
 
-    # \gamma_{cjk} 1 if a total of k panels of stock size j are produced to satisfy the demand for item types in subset I_c,
-    # 0 otherwise, for j \in J, c \in C_j, k \in K_{cj}
+    # \gamma_{cjk} is 1 if a total of k panels of stock size j are produced to satisfy the demand for item types in
+    # subset I_c, and is 0 otherwise, for j \in J, c \in C_j, k \in K_{cj}
     gamma_cjk = model.addVars(
         [(c, idx, n, k)
-        for idx in range(J[0])
-        for n in range(J[1])
-        for c in C_j[idx]
-        for k in K_cj[(c, idx)]
-        ],
+         for idx in range(J[0])
+         for n in range(J[1])
+         for c in C_j[idx]
+         for k in K_cj[(c, idx)]
+         ],
         vtype=GRB.BINARY,
         name="gamma_cjk"
     )
@@ -168,8 +166,8 @@ def Optimize(number, scenario_id, n_s_max_id):
     # \delta_{w} 1 if at least one stock size in J^{w} is selected, 0 otherwise for w' \in W
     delta_w = model.addVars(
         [w
-        for w in range(len(W))
-        ],
+         for w in range(len(W))
+         ],
         vtype=GRB.BINARY,
         name="delta_w"
     )
@@ -177,9 +175,9 @@ def Optimize(number, scenario_id, n_s_max_id):
     # x_j length of stock size j, for j \in J
     x_j = model.addVars(
         [(idx, n)
-        for idx in range(J[0])
-        for n in range(J[1])
-        ],
+         for idx in range(J[0])
+         for n in range(J[1])
+         ],
         vtype=GRB.CONTINUOUS,
         ub=L_max,
         name="x_j"
@@ -190,10 +188,10 @@ def Optimize(number, scenario_id, n_s_max_id):
     # Note that y_{cjk} = x_j if \gamma_{cjk} = 1, otherwise 0
     y_cjk = model.addVars(
         [(c, idx, n, k)
-        for idx in range(J[0])
-        for n in range(J[1])
-        for c in C_j[idx]
-        for k in K_cj[(c, idx)]],
+         for idx in range(J[0])
+         for n in range(J[1])
+         for c in C_j[idx]
+         for k in K_cj[(c, idx)]],
         vtype=GRB.CONTINUOUS,
         lb=0,
         ub=L_max,
@@ -216,36 +214,33 @@ def Optimize(number, scenario_id, n_s_max_id):
     # CONSTRAINTS
 
     # 3. Ensure that each item is allocated to a stock size
+    # noinspection PyTypeChecker
     model.addConstrs(
         (gp.quicksum(alpha_cj[c, idx, n] * a_ic[(i, c)]
-                    for idx in range(J[0])
-                    for n in range(J[1])
-                    for c in C_j[idx]) == 1
-        for i in range(len(I))),
+                     for idx in range(J[0])
+                     for n in range(J[1])
+                     for c in C_j[idx]) == 1
+         for i in range(len(I))),
         name='link_alpha_a'
     )
 
     # 4. Ensure that a stock size is used iff at least 1 item type is assigned to it
     model.addConstrs(
         (alpha_cj[c, idx, n] <= beta_j[idx, n]
-        for idx in range(J[0])
-        for n in range(J[1])
-        for c in C_j[idx]),
+         for idx in range(J[0])
+         for n in range(J[1])
+         for c in C_j[idx]),
         name="link_alpha_beta"
     )
 
     # 4b.
     model.addConstrs(
         (gp.quicksum(alpha_cj[c, idx, n]
-                    for idx in range(J[0])
-                    for n in range(J[1])
-                    for c in C_j[idx]) >= beta_j[idx, n]
-        for idx in range(J[0])
-        for n in range(J[1])
-        for c in C_j[idx]),
+                     for c in C_j[idx]) >= beta_j[idx, n]
+         for idx in range(J[0])
+         for n in range(J[1])),
         name="link_beta_alpha"
     )
-
 
     # 5. Ensure the limit on stock sizes is not broken
     model.addConstr(
@@ -260,78 +255,79 @@ def Optimize(number, scenario_id, n_s_max_id):
     # 6. Ensure that if a subset I_c is assigned to j, then a k is assigned.
     model.addConstrs(
         (gp.quicksum(gamma_cjk[c, idx, n, k] for k in K_cj[(c, idx)]) == alpha_cj[c, idx, n]
-        for idx in range(J[0])
-        for n in range(J[1])
-        for c in C_j[idx]),
+         for idx in range(J[0])
+         for n in range(J[1])
+         for c in C_j[idx]),
         name="link_gamma_alpha"
     )
 
     # 7. Ensure y_cjk and x_j constraints
     model.addConstrs(
         (gp.quicksum(lmin_cjk[(c, idx, k)] * gamma_cjk[c, idx, n, k]
-                    for k in K_cj[(c, idx)]) <= x_j[idx, n]
-        for idx in range(J[0])
-        for n in range(J[1])
-        for c in C_j[idx]),
+                     for k in K_cj[(c, idx)]) <= x_j[idx, n]
+         for idx in range(J[0])
+         for n in range(J[1])
+         for c in C_j[idx]),
         name="length_bound_7"
     )
 
     # 8. Ensure that the y_cjk respects its length st.
     model.addConstrs(
         (y_cjk[c, idx, n, k] <= x_j[idx, n]
-        for idx in range(J[0])
-        for n in range(J[1])
-        for c in C_j[idx]
-        for k in K_cj[(c, idx)]),
+         for idx in range(J[0])
+         for n in range(J[1])
+         for c in C_j[idx]
+         for k in K_cj[(c, idx)]),
         name="link_8_y_x"
     )
 
     # 9. Ensure that y_cjk doesn't exceed maximum length
     model.addConstrs(
         (y_cjk[c, idx, n, k] <= L_max * gamma_cjk[c, idx, n, k]
-        for idx in range(J[0])
-        for n in range(J[1])
-        for c in C_j[idx]
-        for k in K_cj[(c, idx)]),
+         for idx in range(J[0])
+         for n in range(J[1])
+         for c in C_j[idx]
+         for k in K_cj[(c, idx)]),
         name="link_9_y_x"
     )
 
     # 10. Ensure that x_j doesn't exceed maximum length if k panels are being produced.
     model.addConstrs(
         (x_j[idx, n] - y_cjk[c, idx, n, k] <= L_max * (1 - gamma_cjk[c, idx, n, k])
-        for idx in range(J[0])
-        for n in range(J[1])
-        for c in C_j[idx]
-        for k in K_cj[(c, idx)]),
+         for idx in range(J[0])
+         for n in range(J[1])
+         for c in C_j[idx]
+         for k in K_cj[(c, idx)]),
         name="link_10_y_x"
     )
 
     # 11. Ensure x_j doesn't exceed minimum length for all selected stock sizes j, otherwise 0.
     model.addConstrs(
         (L_min * beta_j[idx, n] <= x_j[idx, n]
-        for idx in range(J[0])
-        for n in range(J[1])),
+         for idx in range(J[0])
+         for n in range(J[1])),
         name="stock_length_min"
     )
-    # 11b. Ensure x_j doesn't exceed maximum length for all selected stock sizes j, otherwise 0.
+    # 11b.
     model.addConstrs(
         (x_j[idx, n] <= L_max * beta_j[idx, n]
-        for idx in range(J[0])
-        for n in range(J[1])),
+         for idx in range(J[0])
+         for n in range(J[1])),
         name="stock_length_max"
     )
 
     # 12. Ensure a stock size width is used iff used at least one time.
     model.addConstrs(
         (gp.quicksum(beta_j[idx, n] for n in range(J[1])) >= delta_w[idx]
-        for idx in range(J[0])),
+         for idx in range(J[0])),
         name="link_delta_beta"
     )
 
+    # 12b.
     model.addConstrs(
         (beta_j[idx, n] <= delta_w[idx]
-        for idx in range(J[0])
-        for n in range(J[1])),
+         for idx in range(J[0])
+         for n in range(J[1])),
         name="link_beta_delta"
     )
 
@@ -343,20 +339,19 @@ def Optimize(number, scenario_id, n_s_max_id):
 
     # 21. Symmetry breaking constraint for \beta_j
     model.addConstrs(
-        (beta_j[idx, n+1] <= beta_j[idx, n]
-        for idx in range(J[0])
-        for n in range(J[1] - 1)),
+        (beta_j[idx, n + 1] <= beta_j[idx, n]
+         for idx in range(J[0])
+         for n in range(J[1] - 1)),
         name="beta_symmetry"
     )
 
     # 22. Symmetry breaking constraints for \x_j
     model.addConstrs(
-        (x_j[idx, n] - x_j[idx, n+1] >= Delta_j[idx] * beta_j[idx, n+1]
-        for idx in range(J[0])
-        for n in range(J[1] - 1)),
+        (x_j[idx, n] - x_j[idx, n + 1] >= Delta_j[idx] * beta_j[idx, n + 1]
+         for idx in range(J[0])
+         for n in range(J[1] - 1)),
         name="x_symmetry"
     )
-
 
     # Optimize the model
     model.optimize()
@@ -378,4 +373,4 @@ def Optimize(number, scenario_id, n_s_max_id):
                                     print(f"        with respectively {n_c_asterisk[(c, idx, k)]} columns.")
     else:
         print("No optimal solution found.")
-    return(model.ObjBoundC,model.MIPGap,model.Runtime)
+    return model.ObjBoundC, model.MIPGap, model.Runtime
