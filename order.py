@@ -67,7 +67,7 @@ class Order:
         self.a_ic = {}
         self.a_ic_generator()
 
-    # Returns the I subset corresponding to a specified index.
+    # Returns the items subset I_c corresponding to a specified index.
     def powerset_at_index(self, index):
         binary_repr = format(index, f'0{len(self.Items)}b')
         subset = [self.Items[i] for i in range(len(self.Items)) if binary_repr[i] == '1']

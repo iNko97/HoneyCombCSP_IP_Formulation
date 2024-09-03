@@ -357,8 +357,11 @@ def optimize(number, scenario_id, n_s_max_id):
     model.optimize()
 
     # Extract the solution
-    if model.status == GRB.OPTIMAL:
-        print("Optimal solution found:")
+    if model.status == GRB.OPTIMAL or model.status == GRB.TIME_LIMIT:
+        if model.status == GRB.OPTIMAL:
+            print("Optimal solution found:")
+        if model.status == GRB.TIME_LIMIT:
+            print("Time limit reached. Best solution found:")
         for idx in range(J[0]):
             for n in range(J[1]):
                 if beta_j[idx, n].x > 0.5:
