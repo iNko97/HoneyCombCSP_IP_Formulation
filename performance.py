@@ -9,7 +9,7 @@ def addToCSV(model,ordernum,stringa):
     performance = {
         "Settings": stringa,
         "Ordine": ordernum,
-        "Area": model.ObjBoundC/1000000,
+        "Area": model.objVal/1000000,
         "Gap": model.MIPGap,
         "Time": model.Runtime}
     print(performance)
@@ -17,14 +17,14 @@ def addToCSV(model,ordernum,stringa):
     df.to_csv(path_or_buf=output_path, mode='a',index=False, header=None)
 
 #Available: [7,8,10,17,20,22,23,24]
-ordernumbers = [8]
+ordernumbers = [7]
 performanceAREA = []
 performanceGAP = []
 performanceTIME= []
 result = []
 settings = []
-for scenario in [1]:
-    for nsmax in [1,2]:
+for scenario in [4]:
+    for nsmax in [1]:
         if scenario==3 and nsmax == 1:
             continue
         for a in ordernumbers:
