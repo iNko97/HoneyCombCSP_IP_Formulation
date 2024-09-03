@@ -9,14 +9,28 @@ def is_dominated(new_combo, valid_combinations):
             return True
     return False
 
-
 def remove_dominated(valid_combinations, new_combo):
     return [combination for combination in valid_combinations
             if not all(new_combo[i] >= combination[i] for i in range(len(combination)))]
 
 
-class Order:
+# Returns all possible non-dominated N_c given an i in I_c and a w in W
+def n_c_generator(I_c, _w_max):
+    widths = [item[0] for item in I_c]
+    max_rows = [_w_max // _width for _width in widths]
+    possible_combinations = product(*(range(1, mr + 1) for mr in max_rows))
+    valid_combinations = []
+    for combination in possible_combinations:
+        _total_width = sum(widths[i] * combination[i] for i in range(len(widths)))
+        if _total_width <= _w_max:
+            # Check if the new combination is dominated
+            if not is_dominated(combination, valid_combinations):
+                valid_combinations = remove_dominated(valid_combinations, combination)
+                valid_combinations.append(combination)
+    return valid_combinations
 
+
+class Order:
     def __init__(self, datasheet, scenario, order_number):
         self.order_sheet = pd.read_excel(datasheet,
                                          engine="odf",
@@ -27,8 +41,9 @@ class Order:
                                          engine="odf",
                                          sheet_name=f'scenario_{scenario[0]}_{scenario[1]}'
                                          )
-
         print(self.param_sheet)
+
+        # Factory Settings
         self.L_min = int(self.param_sheet['lmin'][0])  # Minimum panel length
         self.L_max = int(self.param_sheet['lmax'][0])  # Maximum panel length
         self.n_s_max = int(self.param_sheet['n_s_max'][0])  # Maximum number of stock sizes
@@ -37,11 +52,13 @@ class Order:
         self.one_group = bool(self.param_sheet['one_group'][0])  # Only one-groups are allowed
         self.available_widths = self.param_sheet['widths'].to_list()  # Set of w available stock widths
 
+        # Order information
         self.Width = self.order_sheet['Width']  # Individual item width
         self.Length = self.order_sheet['Length']  # Individual item Length
         self.Demand = self.order_sheet['Demand']  # Individual item Demand
         self.Items = [[int(self.Width[i]), int(self.Length[i]), int(self.Demand[i])] for i in range(len(self.Width))]
 
+        # Initial Pre-processing
         self.best_nc = {}
         print("Generating C")
         self.C = set()
@@ -70,21 +87,6 @@ class Order:
             indexes.append(int(new_binary_repr, 2))
         return indexes
 
-    # Returns all possible non-dominated N_c given an i in I_c and a w in W
-    def n_c_generator(self, I_c, _w_max):
-        widths = [item[0] for item in I_c]
-        max_rows = [_w_max // _width for _width in widths]
-        possible_combinations = product(*(range(1, mr + 1) for mr in max_rows))
-        valid_combinations = []
-        for combination in possible_combinations:
-            _total_width = sum(widths[i] * combination[i] for i in range(len(widths)))
-            if _total_width <= _w_max:
-                # Check if the new combination is dominated
-                if not is_dominated(combination, valid_combinations):
-                    valid_combinations = remove_dominated(valid_combinations, combination)
-                    valid_combinations.append(combination)
-        return valid_combinations
-
     # returns kmin_{cj}, kmax_{cj}, lmin_{cjk}
     def optimised_stocksize_variables(self, index, _width):
         subset = self.powerset_at_index(index)
@@ -92,7 +94,7 @@ class Order:
         lmin_cjk = {}
         K_cj = set()
 
-        for n_c in self.n_c_generator(subset, _width):
+        for n_c in n_c_generator(subset, _width):
             # ceiling(a/b) = -floor(a/-b)
             c_ijni = [-(_demands[i] // -n_c[i]) for i in range(len(_demands))]
 
@@ -114,7 +116,8 @@ class Order:
 
                 if lmin_Nccjk > self.L_max:
                     print(
-                        f"Infeasible to meet the demand of I_{index} with {k} panels of width {_width} with row distribution of {n_c}"
+                        f"Infeasible to meet the demand of I_{index} with {k} panels "
+                        f"of width {_width} with row distribution of {n_c}"
                     )
                 else:
                     if lmin_cjk.get((index, self.available_widths.index(_width), k), lmin_Nccjk+1) > lmin_Nccjk:
