@@ -369,4 +369,4 @@ def optimise(number, scenario_id, n_s_max_id):
                                     print(f"        with respectively {n_c_asterisk[(c, idx, k)]} columns.")
     else:
         print("No optimal solution found.")
-    return model.ObjBoundC, model.MIPGap, model.Runtime
+    return model
