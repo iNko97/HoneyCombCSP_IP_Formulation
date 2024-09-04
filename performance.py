@@ -26,8 +26,8 @@ performanceGAP = []
 performanceTIME= []
 result = []
 settings = []
-for scenario in [1,2]:
-    for nsmax in [1,2]:
+for scenario in [2]:
+    for nsmax in [2]:
         if scenario==3 and nsmax == 1:
             continue
         for a in ordernumbers:

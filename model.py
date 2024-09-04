@@ -349,6 +349,8 @@ def optimise(number, scenario_id, n_s_max_id):
     # Optimize the model
     model.optimize()
 
+    A_c_lower_bound = 0
+
     # Extract the solution
     if model.status == GRB.OPTIMAL or model.status == GRB.TIME_LIMIT:
         if model.status == GRB.OPTIMAL:
@@ -363,10 +365,12 @@ def optimise(number, scenario_id, n_s_max_id):
                         if alpha_cj[c, idx, n].x > 0.5:
                             binary_rep = f"{c:0{len(I)}b}"
                             indexes = [i + 1 for i, bit in enumerate(binary_rep) if bit == '1']
+                            A_c_lower_bound += A_c[c]
                             for k in K_cj[(c, idx)]:
                                 if gamma_cjk[c, idx, n, k].x > 0.5:
                                     print(f"    {k} panels of items {indexes}")
                                     print(f"        with respectively {n_c_asterisk[(c, idx, k)]} columns.")
+        print(f"The lower bound for this solution instance was {round(A_c_lower_bound/1000000)}")
     else:
         print("No optimal solution found.")
     return model
