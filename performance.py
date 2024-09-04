@@ -20,13 +20,13 @@ def addToCSV(model,ordernum,stringa):
     df.to_csv(path_or_buf=output_path, mode='a',index=False, header=None)
 
 #Available: [7,8,10,17,20,22,23,24]
-ordernumbers = [7]
+ordernumbers = [8,10,22,23]
 performanceAREA = []
 performanceGAP = []
 performanceTIME= []
 result = []
 settings = []
-for scenario in [1,2]:
+for scenario in [1,2,3]:
     for nsmax in [1,2]:
         if scenario==3 and nsmax == 1:
             continue
