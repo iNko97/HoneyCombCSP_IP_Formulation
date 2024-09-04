@@ -373,4 +373,4 @@ def optimise(number, scenario_id, n_s_max_id):
         print(f"The lower bound for this solution instance was {round(A_c_lower_bound/1000000)}")
     else:
         print("No optimal solution found.")
-    return model
+    return model, A_c_lower_bound
