@@ -5,22 +5,19 @@ import numpy
 import os
 def getPercentage(n1,n2):
     diff = n1-n2
-    sum = n1+n2
-    avrg = sum/2
-    percentage = (diff/avrg)*100
+    percentage = (diff/n2)*100
     percentage = round(percentage,1)
-    return str(percentage) + "%"
+    return percentage
 def addToCSV(model,ordernum,stringa,gapAc):
     output_path='Data/result.csv'
     GapPerc = getPercentage(model.ObjVal, gapAc)
     if(model.runTime <1800):
-        print("Here")
-        GapPerc = str(model.MIPGAP) +"%"
+        GapPerc = model.MIPGAP
     performance = {
         "Settings": stringa,
         "Ordine": ordernum,
-        "Area": model.ObjVal/1000000,
-        "Gap": GapPerc,
+        "Area": int(model.ObjVal/1000000),
+        "Gap": str(round(GapPerc,1))+"%",
         "Time": round(model.Runtime,1)}
     print(performance)
     df = pd.DataFrame([performance])
@@ -28,16 +25,17 @@ def addToCSV(model,ordernum,stringa,gapAc):
     print(performance)
 
 #Available: [7,8,10,17,20,22,23,24]
-ordernumbers = [7,8,10,17]
-for scenario in [1,2,3]:
-    for nsmax in [1,2]:
-        if scenario==3 and nsmax == 1:
-            continue
-        for a in ordernumbers:
-            stringa ="Scenario:" + str(scenario) + " NsMax:" + str(nsmax)
-            print(stringa)
-            result, Ac_lower = model.optimise(a,scenario,nsmax)
-            addToCSV(result,a,stringa,Ac_lower)
+ordernumbers = [17,20]
+for a in ordernumbers:
+    for scenario in [1,2,3]:
+        for nsmax in [1,2]:
+            if scenario==3 and nsmax == 1:
+                continue
+            else:
+                stringa ="Scenario:" + str(scenario) + " NsMax:" + str(nsmax)
+                print(stringa)
+                result, Ac_lower = model.optimise(a,scenario,nsmax)
+                addToCSV(result,a,stringa,Ac_lower)
             
 """datapath = "Data/input_data.ods"
 datasheet = pd.ExcelFile(datapath, engine="odf")
