@@ -3,14 +3,14 @@ import matplotlib.pyplot as plt
 import model
 import numpy
 import os
-def getPercentage(n1,n2):
+def getGap(n1,n2):
     diff = n1-n2
-    percentage = (diff/n2)*100
-    percentage = round(percentage,1)
-    return percentage
+    gap = diff/(1e-10+n1)
+    gap = round(gap,1)
+    return gap
 def addToCSV(model,ordernum,stringa,gapAc):
     output_path='Data/result.csv'
-    GapPerc = getPercentage(model.ObjVal, gapAc)
+    GapPerc = getGap(model.ObjVal, gapAc)
     if(model.runTime <1800):
         GapPerc = model.MIPGAP
     performance = {
