@@ -113,8 +113,8 @@ def optimise(number, scenario_id, n_s_max_id):
     # A_c lower bound for the area of material used
     print("Calculating A_c lower bounds.")
     A_c = {}
-    for (c, idx, k), value in lmin_cjk.items():
-        current_product = k * W[idx] * value
+    for (c, idx, k), _lmin_cjk in lmin_cjk.items():
+        current_product = k * W[idx] * _lmin_cjk
         A_c[c] = min(A_c.get(c, current_product), current_product)
 
     n_c_asterisk = order.best_nc
