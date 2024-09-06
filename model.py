@@ -42,7 +42,7 @@ def optimise(number, scenario_id, n_s_max_id):
     C_j = order.C_j_generator()
 
     print("Generating K_cj and lmin_cjk")
-    # dictionary with triplet (c, idx_j, k) where c I_c, idx_j J.shape[0], k stock size
+    # dictionary with triplet (c, idx_j, k) where c in I_c, idx_j in J.shape[0], k stock size
     lmin_cjk = {}
     # dictionary with tuple (c, idx_j) : list(range(kmin_cj, ..., kmax_cj))
     K_cj = {}
