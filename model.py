@@ -2,17 +2,19 @@ import gurobipy as gp
 from gurobipy import GRB
 from order import Order
 
-
 def optimise(number, scenario_id, n_s_max_id):
     # Model Parameters
     path = "./Data/Input_data.ods"
     order_number = number
 
     model = gp.Model("2D_Cutting_Stock")
-    model.setParam(GRB.Param.MIPFocus, 2)
+    model.setParam(GRB.Param.MIPFocus, 3)
     model.setParam(GRB.Param.PreDual, 0)
     model.setParam(GRB.Param.MIPGap, 0)
-    model.setParam('TimeLimit', 1800)
+    model.setParam(GRB.Param.TimeLimit, 1800)
+    model.setParam(GRB.Param.Heuristics, 1)
+    model.setParam(GRB.Param.Presolve, 2)
+    model.setParam(GRB.Param.Cuts, 3)
 
     # Factory settings
     order = Order(path, (scenario_id, n_s_max_id), order_number)
