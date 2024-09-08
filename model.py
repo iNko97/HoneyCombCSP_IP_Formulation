@@ -4,7 +4,7 @@ import gurobipy as gp
 from gurobipy import GRB
 
 from order import Order
-
+from collections import Counter
 
 def optimise(order_number, scenario_id, _n_s_max):
     # Program Parameters
@@ -129,7 +129,15 @@ def optimise(order_number, scenario_id, _n_s_max):
         A_c[c] = min(A_c.get(c, current_product), current_product)
     order.A_c = A_c
 
+    # Get column distribution data for solution parsing.
     n_c_asterisk = order.best_nc
+
+    counter = Counter((c, idx, k)
+                      for idx in range(J[0])
+                      for c in C_j[idx]
+                      for k in K_cj[c, idx]
+                      )
+
 
     print("Initialising model.")
     # DECISION VARIABLES
@@ -409,7 +417,6 @@ def optimise(order_number, scenario_id, _n_s_max):
                       "A_c": round(A_c_lower_bound/1000000)}
             writer.writerow(result)
 
-
     else:
         print("No solution found.")
-    return model, order
+    return model, A_c_lower_bound
