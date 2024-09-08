@@ -53,10 +53,11 @@ class Order:
         self.available_widths = self.param_sheet['widths'].to_list()  # Set of w available stock widths
 
         # Order information
-        self.Width = self.order_sheet['Width']  # Individual item width
-        self.Length = self.order_sheet['Length']  # Individual item Length
-        self.Demand = self.order_sheet['Demand']  # Individual item Demand
-        self.Items = [[int(self.Width[i]), int(self.Length[i]), int(self.Demand[i])] for i in range(len(self.Width))]
+        self.item_widths = self.order_sheet['Width']  # Individual item width
+        self.item_lengths = self.order_sheet['Length']  # Individual item Length
+        self.item_demands = self.order_sheet['Demand']  # Individual item Demand
+        self.Items = [[int(self.item_widths[i]), int(self.item_lengths[i]), int(self.item_demands[i])]
+                      for i in range(len(self.item_widths))]
 
         # Initial Pre-processing
         self.best_nc = {}

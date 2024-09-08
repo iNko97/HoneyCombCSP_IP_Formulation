@@ -1,12 +1,18 @@
 import gurobipy as gp
 from gurobipy import GRB
 from order import Order
+import csv, os
 
 def optimise(order_number, scenario_id, _n_s_max):
-    # Model Parameters
+    # Program Parameters
     path = "./Data/Input_data.ods"
+    order_filename = f"./Output/order_{order_number}_{scenario_id}_{_n_s_max}.csv"
+    results_filename = f"./Output/results.csv"
+    write_header = not os.path.exists(results_filename)
+    item_allocations = []
+    A_c_lower_bound = 0
 
-    #Gurobi Parameters
+    # Gurobi Parameters
     model = gp.Model("2D_Cutting_Stock")
     model.setParam(GRB.Param.MIPFocus, 3)
     model.setParam(GRB.Param.PreDual, -1)
@@ -15,6 +21,8 @@ def optimise(order_number, scenario_id, _n_s_max):
     model.setParam(GRB.Param.Heuristics, 1)
     model.setParam(GRB.Param.Presolve, 2)
     model.setParam(GRB.Param.Cuts, 3)
+
+    # Support variables
 
     # Factory settings
     order = Order(path, (scenario_id, _n_s_max), order_number)
@@ -361,8 +369,6 @@ def optimise(order_number, scenario_id, _n_s_max):
     # Optimize the model
     model.optimize()
 
-    A_c_lower_bound = 0
-
     # Extract the solution
     if model.status == GRB.OPTIMAL or model.status == GRB.TIME_LIMIT:
         if model.status == GRB.OPTIMAL:
@@ -382,7 +388,36 @@ def optimise(order_number, scenario_id, _n_s_max):
                                 if gamma_cjk[c, idx, n, k].x > 0.5:
                                     print(f"    {k} panels of items {indexes}")
                                     print(f"        with respectively {n_c_asterisk[(c, idx, k)]} columns.")
+                                    results.append({
+                                        "Stock_Length": W[idx],
+                                        "Stock_Width": x_j[idx, n].x,
+                                        "Panels": k,
+                                        "Items": indexes,
+                                        "Columns": n_c_asterisk[(c, idx, k)]
+                                    })
         print(f"The lower bound for this solution instance was {round(A_c_lower_bound/1000000)}")
+
+        with open(order_filename, mode='w', newline='') as file:
+            writer = csv.DictWriter(file, fieldnames=["Stock_Length", "Stock_Width", "Panels", "Items", "Columns"])
+            writer.writeheader()
+            for _item in item_allocations:
+                writer.writerow(_item)
+
+        with open(results_filename, mode='a', newline='') as file:
+            if write_header:
+                writer = csv.DictWriter(file,
+                                        fieldnames=["Order", "Scenario", "n_s_max", "Solution", "Gap", "Time", "A_c"])
+                writer.writeheader()
+            result = {"Order": order_number,
+                      "Scenario": scenario_id,
+                      "n_s_max": n_s_max,
+                      "Solution": round(model.getObjective()/1000000),
+                      "Gap": model.MIPGap,
+                      "Time": model.Runtime,
+                      "A_c": round(A_c_lower_bound/1000000)}
+            writer.writerow(result)
+
+
     else:
-        print("No optimal solution found.")
+        print("No solution found.")
     return model, order
