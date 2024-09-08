@@ -15,7 +15,7 @@ def optimise(order_number, scenario_id, _n_s_max):
     # Gurobi Parameters
     model = gp.Model("2D_Cutting_Stock")
     model.setParam(GRB.Param.MIPFocus, 3)
-    model.setParam(GRB.Param.PreDual, -1)
+    model.setParam(GRB.Param.PreDual, 0)
     model.setParam(GRB.Param.MIPGap, 0)
     model.setParam(GRB.Param.TimeLimit, 1800)
     model.setParam(GRB.Param.Heuristics, 1)
