@@ -1,7 +1,10 @@
+import csv
+import os
 import gurobipy as gp
 from gurobipy import GRB
+
 from order import Order
-import csv, os
+
 
 def optimise(order_number, scenario_id, _n_s_max):
     # Program Parameters
