@@ -1,6 +1,6 @@
 from model import optimise
 
-order_numbers = [8, 10, 17, 20]
+order_numbers = [22, 23, 24]
 scenario_ids = [1, 2, 3]
 n_s_max_ids = [1, 2]
 

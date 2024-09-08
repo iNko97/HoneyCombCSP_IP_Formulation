@@ -404,7 +404,7 @@ def optimise(order_number, scenario_id, _n_s_max):
                       "Scenario": scenario_id,
                       "n_s_max": n_s_max,
                       "Solution": round(model.ObjVal/1000000),
-                      "Gap": model.MIPGap,
+                      "Gap": round(model.MIPGap, 2),
                       "Time": round(model.Runtime),
                       "A_c": round(A_c_lower_bound/1000000)}
             writer.writerow(result)
