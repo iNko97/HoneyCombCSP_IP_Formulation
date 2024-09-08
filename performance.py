@@ -27,15 +27,15 @@ def addToCSV(model,ordernum,stringa,gapAc):
 #Available: [7,8,10,17,20,22,23,24]
 ordernumbers = [24]
 for a in ordernumbers:
-    for scenario in [3]:
-        for nsmax in [2]:
+    for scenario in [1,2,3]:
+        for nsmax in [1,2]:
             if scenario==3 and nsmax == 1:
                 continue
             else:
                 stringa ="Scenario:" + str(scenario) + " NsMax:" + str(nsmax)
                 print(stringa)
                 result, Ac_lower = model.optimise(a,scenario,nsmax)
-                addToCSV(result,a,stringa,Ac_lower)
+                addToCSV(result, a, stringa, Ac_lower.A_C)
             
 """datapath = "Data/input_data.ods"
 datasheet = pd.ExcelFile(datapath, engine="odf")

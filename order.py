@@ -66,6 +66,7 @@ class Order:
         print("Generating a_ic")
         self.a_ic = {}
         self.a_ic_generator()
+        self.A_c = {}
 
     # Returns the items subset I_c corresponding to a specified index.
     def powerset_at_index(self, index):

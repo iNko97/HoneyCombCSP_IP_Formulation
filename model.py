@@ -2,15 +2,14 @@ import gurobipy as gp
 from gurobipy import GRB
 from order import Order
 
-def optimise(number, scenario_id, n_s_max_id):
+def optimise(order_number, scenario_id, _n_s_max):
     # Model Parameters
     path = "./Data/Input_data.ods"
-    order_number = number
 
     #Gurobi Parameters
     model = gp.Model("2D_Cutting_Stock")
     model.setParam(GRB.Param.MIPFocus, 3)
-    model.setParam(GRB.Param.PreDual, 0)
+    model.setParam(GRB.Param.PreDual, -1)
     model.setParam(GRB.Param.MIPGap, 0)
     model.setParam(GRB.Param.TimeLimit, 1800)
     model.setParam(GRB.Param.Heuristics, 1)
@@ -18,7 +17,7 @@ def optimise(number, scenario_id, n_s_max_id):
     model.setParam(GRB.Param.Cuts, 3)
 
     # Factory settings
-    order = Order(path, (scenario_id, n_s_max_id), order_number)
+    order = Order(path, (scenario_id, _n_s_max), order_number)
 
     L_min = order.L_min  # Minimum panel length
     L_max = order.L_max  # Maximum panel length
@@ -119,6 +118,7 @@ def optimise(number, scenario_id, n_s_max_id):
     for (c, idx, k), _lmin_cjk in lmin_cjk.items():
         current_product = k * W[idx] * _lmin_cjk
         A_c[c] = min(A_c.get(c, current_product), current_product)
+    order.A_c = A_c
 
     n_c_asterisk = order.best_nc
 
@@ -377,7 +377,7 @@ def optimise(number, scenario_id, n_s_max_id):
                         if alpha_cj[c, idx, n].x > 0.5:
                             binary_rep = f"{c:0{len(I)}b}"
                             indexes = [i + 1 for i, bit in enumerate(binary_rep) if bit == '1']
-                            A_c_lower_bound += A_c[c]
+                            A_c_lower_bound += order.A_c[c]
                             for k in K_cj[(c, idx)]:
                                 if gamma_cjk[c, idx, n, k].x > 0.5:
                                     print(f"    {k} panels of items {indexes}")
@@ -385,4 +385,4 @@ def optimise(number, scenario_id, n_s_max_id):
         print(f"The lower bound for this solution instance was {round(A_c_lower_bound/1000000)}")
     else:
         print("No optimal solution found.")
-    return model, A_c_lower_bound
+    return model, order
