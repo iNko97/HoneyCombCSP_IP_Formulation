@@ -7,6 +7,7 @@ def optimise(number, scenario_id, n_s_max_id):
     path = "./Data/Input_data.ods"
     order_number = number
 
+    #Gurobi Parameters
     model = gp.Model("2D_Cutting_Stock")
     model.setParam(GRB.Param.MIPFocus, 3)
     model.setParam(GRB.Param.PreDual, 0)
@@ -346,6 +347,15 @@ def optimise(number, scenario_id, n_s_max_id):
          for idx in range(J[0])
          for n in range(J[1] - 1)),
         name="x_symmetry"
+    )
+
+    # Custom. Cj sum is always the same
+    model.addConstr(
+        gp.quicksum(c * alpha_cj[c, idx, n]
+                    for idx in range(J[0])
+                    for n in range(J[1])
+                    for c in C_j[idx]) == 2 ** (len(I)) - 1,
+        name="link_max_sum"
     )
 
     # Optimize the model
