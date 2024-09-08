@@ -374,7 +374,7 @@ def optimise(order_number, scenario_id, _n_s_max):
                     for c in C_j[idx]:
                         if alpha_cj[c, idx, n].x > 0.5:
                             binary_rep = f"{c:0{len(I)}b}"
-                            indexes = [i + 1 for i, bit in enumerate(binary_rep) if bit == '1']
+                            indexes = (i + 1 for i, bit in enumerate(binary_rep) if bit == '1')
                             A_c_lower_bound += order.A_c[c]
                             for k in K_cj[(c, idx)]:
                                 if gamma_cjk[c, idx, n, k].x > 0.5:
