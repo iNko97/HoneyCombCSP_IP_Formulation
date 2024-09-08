@@ -1,8 +1,7 @@
-import csv
 from model import optimise
 
 order_numbers = [8, 10, 17, 20]
-scenario_ids = [3]
+scenario_ids = [1, 2, 3]
 n_s_max_ids = [1, 2]
 
 for order_number in order_numbers:
