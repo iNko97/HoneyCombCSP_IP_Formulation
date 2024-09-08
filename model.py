@@ -22,8 +22,6 @@ def optimise(order_number, scenario_id, _n_s_max):
     model.setParam(GRB.Param.Presolve, 2)
     model.setParam(GRB.Param.Cuts, 3)
 
-    # Support variables
-
     # Factory settings
     order = Order(path, (scenario_id, _n_s_max), order_number)
 
@@ -31,8 +29,6 @@ def optimise(order_number, scenario_id, _n_s_max):
     L_max = order.L_max  # Maximum panel length
     n_s_max = order.n_s_max  # Maximum number of stock sizes
     n_w_max = order.n_w_max  # Maximum number of widths
-    # n_i_max = order.n_i_max  # Maximum number of items per pattern
-    # one_group = order.one_group  # Only one-groups are allowed
     W = order.available_widths  # Set of w available stock widths
     I = order.Items  # I: item types with their Width, Length, and Demand
 
@@ -43,6 +39,8 @@ def optimise(order_number, scenario_id, _n_s_max):
     # Each row is indexed by available widths.
     # For a certain width w, if the index idx = W.index(w),then the set J^w' = J[idx, :]
     J = (len(W), n_s_max)
+
+    # Whether an item i belongs to I_c
     a_ic = order.a_ic
 
     # Subsets of I compatible with stock size j (C_j)
