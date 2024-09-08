@@ -357,15 +357,6 @@ def optimise(order_number, scenario_id, _n_s_max):
         name="x_symmetry"
     )
 
-    # Custom. Cj sum is always the same
-    model.addConstr(
-        gp.quicksum(c * alpha_cj[c, idx, n]
-                    for idx in range(J[0])
-                    for n in range(J[1])
-                    for c in C_j[idx]) == 2 ** (len(I)) - 1,
-        name="link_max_sum"
-    )
-
     # Optimize the model
     model.optimize()
 
@@ -388,7 +379,7 @@ def optimise(order_number, scenario_id, _n_s_max):
                                 if gamma_cjk[c, idx, n, k].x > 0.5:
                                     print(f"    {k} panels of items {indexes}")
                                     print(f"        with respectively {n_c_asterisk[(c, idx, k)]} columns.")
-                                    results.append({
+                                    item_allocations.append({
                                         "Stock_Length": W[idx],
                                         "Stock_Width": x_j[idx, n].x,
                                         "Panels": k,
@@ -404,16 +395,16 @@ def optimise(order_number, scenario_id, _n_s_max):
                 writer.writerow(_item)
 
         with open(results_filename, mode='a', newline='') as file:
+            writer = csv.DictWriter(file,
+                                    fieldnames=["Order", "Scenario", "n_s_max", "Solution", "Gap", "Time", "A_c"])
             if write_header:
-                writer = csv.DictWriter(file,
-                                        fieldnames=["Order", "Scenario", "n_s_max", "Solution", "Gap", "Time", "A_c"])
                 writer.writeheader()
             result = {"Order": order_number,
                       "Scenario": scenario_id,
                       "n_s_max": n_s_max,
-                      "Solution": round(model.getObjective()/1000000),
+                      "Solution": round(model.ObjVal/1000000),
                       "Gap": model.MIPGap,
-                      "Time": model.Runtime,
+                      "Time": round(model.Runtime),
                       "A_c": round(A_c_lower_bound/1000000)}
             writer.writerow(result)
 

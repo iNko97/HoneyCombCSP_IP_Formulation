@@ -16,7 +16,7 @@ def addToCSV(model,ordernum,stringa,gapAc):
     performance = {
         "Settings": stringa,
         "Ordine": ordernum,
-        "Area": int(model.ObjVal/1000000),
+        "Area": round(model.ObjVal/1000000),
         "Gap": str(round(GapPerc,1))+"%",
         "Time": round(model.Runtime,1)}
     print(performance)
