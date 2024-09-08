@@ -132,14 +132,6 @@ def optimise(order_number, scenario_id, _n_s_max):
     # Get column distribution data for solution parsing.
     n_c_asterisk = order.best_nc
 
-    counter = Counter(lmin_cjk[c, idx, k]
-                      for idx in range(J[0])
-                      for c in C_j[idx]
-                      for k in K_cj[c, idx]
-                      )
-
-    print(counter)
-
     print("Initialising model.")
     # DECISION VARIABLES
 
