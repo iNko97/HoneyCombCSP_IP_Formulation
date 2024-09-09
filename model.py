@@ -28,9 +28,6 @@ def optimise(order_number, scenario_id, _n_s_max):
 
     # Factory settings
     order = Order(path, (scenario_id, _n_s_max), order_number)
-
-    L_min = order.L_min  # Minimum panel length
-    L_max = order.L_max  # Maximum panel length
     n_s_max = order.n_s_max  # Maximum number of stock sizes
     n_w_max = order.n_w_max  # Maximum number of widths
     W = order.available_widths  # Set of w available stock widths

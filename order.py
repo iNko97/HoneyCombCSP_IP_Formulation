@@ -138,7 +138,7 @@ class Order:
             for index in self.C:
                 subset = self.powerset_at_index(index)
                 # Check that One Group policy is respected
-                if self.one_group and any(item != subset[0][1] for item in subset):
+                if self.one_group and any(item[1] != subset[0][1] for item in subset):
                     continue
 
                 total_width = sum(item[0] for item in subset)

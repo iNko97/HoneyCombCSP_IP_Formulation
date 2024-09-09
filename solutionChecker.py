@@ -3,9 +3,9 @@ import pandas as pd
 import numpy as np
 
 # Order to be verified for feasibility.
-order_number = 24
-scenario_number = 3
-n_s_max = 2
+order_number = 7
+scenario_number = 1
+n_s_max = 1
 
 
 def read_solution_from_csv(file_path):

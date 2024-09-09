@@ -1,15 +1,7 @@
 from model import optimise
 
-# Gli scenari descritti sono gli stessi del paper.
-# Si possono accedere alle soluzioni calcolate nei CSV nella cartella di output:
-#   results.csv fornisce le soluzioni equivalenti alla tabella 5 del paper.
-#   I vari files order_a_b_c sono le effettive soluzioni calcolate,
-#       a e' il numoro dell'ordine
-#       b e' il numero dello scenario
-#       c e' il valore massimo di stock definibili in quello scenario
-
-order_numbers = [10]
-scenario_ids = [4, 5, 6]
+order_numbers = [7]
+scenario_ids = [1, 2]
 n_s_max_ids = [1, 2]
 
 for order_number in order_numbers:
