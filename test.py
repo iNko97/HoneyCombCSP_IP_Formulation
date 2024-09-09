@@ -8,7 +8,7 @@ from model import optimise
 #       b e' il numero dello scenario
 #       c e' il valore massimo di stock definibili in quello scenario
 
-order_numbers = [22, 23, 24]
+order_numbers = [17, 20, 22, 23, 24]
 scenario_ids = [1, 2, 3]
 n_s_max_ids = [1, 2]
 

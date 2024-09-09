@@ -24,8 +24,7 @@ def optimise(order_number, scenario_id, _n_s_max):
     model.setParam(GRB.Param.Presolve, 2)
     model.setParam(GRB.Param.Cuts, 3)
     model.setParam(GRB.Param.Method, 2)
-    model.setParam('NumericFocus', 3)
-    model.setParam('ScaleFlag', 1)
+    model.setParam('NumericFocus', 2)
 
     # Factory settings
     order = Order(path, (scenario_id, _n_s_max), order_number)

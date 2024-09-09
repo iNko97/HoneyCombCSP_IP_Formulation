@@ -51,6 +51,7 @@ class Order:
         self.n_i_max = int(self.param_sheet['n_i_max'][0])  # Maximum number of items per pattern
         self.one_group = bool(self.param_sheet['one_group'][0])  # Only one-groups are allowed
         self.available_widths = self.param_sheet['widths'].to_list()  # Set of w available stock widths
+        print(self.available_widths)
 
         # Order information
         self.item_widths = self.order_sheet['Width']  # Individual item width
