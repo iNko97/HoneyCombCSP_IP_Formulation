@@ -44,7 +44,7 @@ class Order:
         print(self.param_sheet)
 
         # Factory Settings
-        self.L_min = int(self.param_sheet['lmin'][0])  # Minimum panel length
+        self.L_min = int(self.param_sheet['lmin'][0])   # Minimum panel length
         self.L_max = int(self.param_sheet['lmax'][0])  # Maximum panel length
         self.n_s_max = int(self.param_sheet['n_s_max'][0])  # Maximum number of stock sizes
         self.n_w_max = int(self.param_sheet['n_w_max'][0])  # Maximum number of widths

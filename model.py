@@ -6,6 +6,7 @@ from gurobipy import GRB
 from order import Order
 from collections import Counter
 
+
 def optimise(order_number, scenario_id, _n_s_max):
     # Program Parameters
     path = "./Data/Input_data.ods"
@@ -17,13 +18,13 @@ def optimise(order_number, scenario_id, _n_s_max):
 
     # Gurobi Parameters
     model = gp.Model("2D_Cutting_Stock")
-    model.setParam(GRB.Param.MIPFocus, 3)
-    model.setParam(GRB.Param.PreDual, 0)
-    model.setParam(GRB.Param.MIPGap, 0)
     model.setParam(GRB.Param.TimeLimit, 1800)
-    model.setParam(GRB.Param.Heuristics, 1)
+    model.setParam(GRB.Param.MIPFocus, 3)
+    model.setParam(GRB.Param.MIPGap, 0)
     model.setParam(GRB.Param.Presolve, 2)
     model.setParam(GRB.Param.Cuts, 3)
+    model.setParam(GRB.Param.Method, 2)
+    model.setParam('NumericFocus', 3)
 
     # Factory settings
     order = Order(path, (scenario_id, _n_s_max), order_number)
@@ -102,25 +103,6 @@ def optimise(order_number, scenario_id, _n_s_max):
             for k in k_to_be_removed:
                 K_cj[c, idx].remove(k)
 
-    # \Delta_j, the minimum length difference between two different values of lmin_cjk for a stock j
-    # Instead of taking different c_1 and c_2 as suggested, we take c_1 and c_2 with no items in common, as an item may
-    # not be assigned to multiple sock sizes. This allows for larger steps and diminution of the search space.
-    print("Generating Delta_j.")
-    for idx in range(J[0]):
-        best_Delta = L_max
-        for c_1 in C_j[idx]:
-            for c_2 in C_j[idx]:
-                if c_1 & c_2 > 0.5:
-                    continue
-                K_cj_1 = K_cj[(c_1, idx)]
-                K_cj_2 = K_cj[(c_2, idx)]
-                for k_1 in K_cj_1:
-                    for k_2 in K_cj_2:
-                        diff = abs(lmin_cjk[(c_1, idx, k_1)] - lmin_cjk[(c_2, idx, k_2)])
-                        if 0 < diff < best_Delta:
-                            best_Delta = diff
-        Delta_j[idx] = best_Delta
-
     # A_c lower bound for the area of material used
     print("Calculating A_c lower bounds.")
     A_c = {}
@@ -131,6 +113,12 @@ def optimise(order_number, scenario_id, _n_s_max):
 
     # Get column distribution data for solution parsing.
     n_c_asterisk = order.best_nc
+
+    stock_lengths = {}
+    for idx in range(J[0]):
+        stock_lengths[idx] = list(Counter(lmin_cjk[c, idx, k]
+                                    for c in C_j[idx]
+                                    for k in K_cj[(c, idx)]))
 
     print("Initialising model.")
     # DECISION VARIABLES
@@ -178,41 +166,28 @@ def optimise(order_number, scenario_id, _n_s_max):
         name="delta_w"
     )
 
-    # x_j length of stock size j, for j \in J
-    x_j = model.addVars(
-        [(idx, n)
+    # \xi_jl length of stock size j, for j \in J
+    xi_jl = model.addVars(
+        [(idx, n, l)
          for idx in range(J[0])
          for n in range(J[1])
+         for l in range(len(stock_lengths[idx]))
          ],
-        vtype=GRB.CONTINUOUS,
-        ub=L_max,
-        name="x_j"
-    )
-
-    # y_{cjk}
-    # Auxiliary continuous variable needed to linearise the product x_j*\gamma_{cjk} for j \in J, c \in C, k \in K_{cj}.
-    # Note that y_{cjk} = x_j if \gamma_{cjk} = 1, otherwise 0
-    y_cjk = model.addVars(
-        [(c, idx, n, k)
-         for idx in range(J[0])
-         for n in range(J[1])
-         for c in C_j[idx]
-         for k in K_cj[(c, idx)]],
-        vtype=GRB.CONTINUOUS,
-        lb=0,
-        ub=L_max,
-        name="y_cjk"
+        vtype=GRB.BINARY,
+        name="xi_jl"
     )
 
     # OBJECTIVE FUNCTION
     # 2. Minimise the total area of the material used
     model.setObjective(
         gp.quicksum(
-            W[idx] * k * y_cjk[c, idx, n, k]
+            W[idx] * k * gp.quicksum(xi_jl[idx, n, l] * stock_lengths[idx][l]
+                                     for l in range(len(stock_lengths[idx]))) * gamma_cjk[c, idx, n, k]
             for idx in range(J[0])
             for n in range(J[1])
             for c in C_j[idx]
             for k in K_cj[(c, idx)]
+
         ),
         GRB.MINIMIZE
     )
@@ -220,7 +195,6 @@ def optimise(order_number, scenario_id, _n_s_max):
     # CONSTRAINTS
 
     # 3. Ensure that each item is allocated to a stock size
-    # noinspection PyTypeChecker
     model.addConstrs(
         (gp.quicksum(alpha_cj[c, idx, n] * a_ic[(i, c)]
                      for idx in range(J[0])
@@ -228,6 +202,14 @@ def optimise(order_number, scenario_id, _n_s_max):
                      for c in C_j[idx]) == 1
          for i in range(len(I))),
         name='link_alpha_a'
+    )
+
+    # h. Ensure that each item is allocated to a stock size
+    model.addConstrs(
+        (gp.quicksum(xi_jl[idx, n, l] for l in range(len(stock_lengths[idx]))) == 1
+         for idx in range(J[0])
+         for n in range(J[1])),
+        name='link_xi_jl'
     )
 
     # 4. Ensure that a stock size is used iff at least 1 item type is assigned to it
@@ -267,66 +249,14 @@ def optimise(order_number, scenario_id, _n_s_max):
         name="link_gamma_alpha"
     )
 
-    # 7. Ensure y_cjk and x_j constraints
+    # 7. Ensure y_cjk and xi_jl constraints
     model.addConstrs(
-        (gp.quicksum(lmin_cjk[(c, idx, k)] * gamma_cjk[c, idx, n, k]
-                     for k in K_cj[(c, idx)]) <= x_j[idx, n]
+        (gp.quicksum(lmin_cjk[(c, idx, k)] * gamma_cjk[c, idx, n, k] for k in K_cj[(c, idx)]) <=
+         gp.quicksum(xi_jl[idx, n, l] * stock_lengths[idx][l] for l in range(len(stock_lengths[idx])))
          for idx in range(J[0])
          for n in range(J[1])
          for c in C_j[idx]),
         name="length_bound_7"
-    )
-
-    # 8. Ensure that the y_cjk respects its length st.
-    model.addConstrs(
-        (y_cjk[c, idx, n, k] <= x_j[idx, n]
-         for idx in range(J[0])
-         for n in range(J[1])
-         for c in C_j[idx]
-         for k in K_cj[(c, idx)]),
-        name="link_8_y_x"
-    )
-
-    # 9. Ensure that y_cjk doesn't exceed maximum length
-    model.addConstrs(
-        (y_cjk[c, idx, n, k] <= L_max * gamma_cjk[c, idx, n, k]
-         for idx in range(J[0])
-         for n in range(J[1])
-         for c in C_j[idx]
-         for k in K_cj[(c, idx)]),
-        name="link_9_y_x"
-    )
-
-    # 10. Ensure that x_j doesn't exceed maximum length if k panels are being produced.
-    model.addConstrs(
-        (x_j[idx, n] - y_cjk[c, idx, n, k] <= L_max * (1 - gamma_cjk[c, idx, n, k])
-         for idx in range(J[0])
-         for n in range(J[1])
-         for c in C_j[idx]
-         for k in K_cj[(c, idx)]),
-        name="link_10_y_x"
-    )
-
-    # 11. Ensure x_j doesn't exceed minimum length for all selected stock sizes j, otherwise 0.
-    model.addConstrs(
-        (L_min * beta_j[idx, n] <= x_j[idx, n]
-         for idx in range(J[0])
-         for n in range(J[1])),
-        name="stock_length_min"
-    )
-    # 11b.
-    model.addConstrs(
-        (x_j[idx, n] <= L_max * beta_j[idx, n]
-         for idx in range(J[0])
-         for n in range(J[1])),
-        name="stock_length_max"
-    )
-
-    # 12. Ensure a stock size width is used iff used at least one time.
-    model.addConstrs(
-        (gp.quicksum(beta_j[idx, n] for n in range(J[1])) >= delta_w[idx]
-         for idx in range(J[0])),
-        name="link_delta_beta"
     )
 
     # 12b.
@@ -353,7 +283,9 @@ def optimise(order_number, scenario_id, _n_s_max):
 
     # 22. Symmetry breaking constraints for \x_j
     model.addConstrs(
-        (x_j[idx, n] - x_j[idx, n + 1] >= Delta_j[idx] * beta_j[idx, n + 1]
+        (gp.quicksum(l * xi_jl[idx, n, l] for l in range(len(stock_lengths[idx]))) -
+         gp.quicksum(l_prime * xi_jl[idx, n + 1, l_prime] for l_prime in range(len(stock_lengths[idx])))
+         >= 1
          for idx in range(J[0])
          for n in range(J[1] - 1)),
         name="x_symmetry"
@@ -363,32 +295,33 @@ def optimise(order_number, scenario_id, _n_s_max):
     model.optimize()
 
     # Extract the solution
-    if model.status == GRB.OPTIMAL or model.status == GRB.TIME_LIMIT:
+    if model.status == GRB.OPTIMAL or model.status == GRB.TIME_LIMIT or model.status == GRB.INTERRUPTED:
         if model.status == GRB.OPTIMAL:
             print("Optimal solution found:")
-        if model.status == GRB.TIME_LIMIT:
-            print("Time limit reached. Best solution found:")
+        if model.status == GRB.TIME_LIMIT or model.status == GRB.INTERRUPTED:
+            print("Time limit reached or interrupted. Best solution found:")
         for idx in range(J[0]):
             for n in range(J[1]):
-                if beta_j[idx, n].x > 0.5:
-                    print(f"Stock size {idx}, {n}: width = {W[idx]}, length = {x_j[idx, n].x}")
-                    for c in C_j[idx]:
-                        if alpha_cj[c, idx, n].x > 0.5:
-                            binary_rep = f"{c:0{len(I)}b}"
-                            indexes = [i + 1 for i, bit in enumerate(binary_rep) if bit == '1']
-                            A_c_lower_bound += order.A_c[c]
-                            for k in K_cj[(c, idx)]:
-                                if gamma_cjk[c, idx, n, k].x > 0.5:
-                                    print(f"    {k} panels of items {indexes}")
-                                    print(f"        with respectively {n_c_asterisk[(c, idx, k)]} columns.")
-                                    item_allocations.append({
-                                        "Stock_Length": W[idx],
-                                        "Stock_Width": x_j[idx, n].x,
-                                        "Panels": k,
-                                        "Items": indexes,
-                                        "Columns": n_c_asterisk[(c, idx, k)]
-                                    })
-        print(f"The lower bound for this solution instance was {round(A_c_lower_bound/1000000)}")
+                for l in range(len(stock_lengths[idx])):
+                    if beta_j[idx, n].x > 0.5 and xi_jl[idx, n, l].x > 0.5:
+                        print(f"Stock size {idx}, {n}: width = {W[idx]}, length = {stock_lengths[idx][l]}")
+                        for c in C_j[idx]:
+                            if alpha_cj[c, idx, n].x > 0.5:
+                                binary_rep = f"{c:0{len(I)}b}"
+                                indexes = [i + 1 for i, bit in enumerate(binary_rep) if bit == '1']
+                                A_c_lower_bound += order.A_c[c]
+                                for k in K_cj[(c, idx)]:
+                                    if gamma_cjk[c, idx, n, k].x > 0.5:
+                                        print(f"    {k} panels of items {indexes}")
+                                        print(f"        with respectively {n_c_asterisk[(c, idx, k)]} columns.")
+                                        item_allocations.append({
+                                            "Stock_Length": W[idx],
+                                            "Stock_Width": stock_lengths[idx][l],
+                                            "Panels": k,
+                                            "Items": indexes,
+                                            "Columns": n_c_asterisk[(c, idx, k)]
+                                        })
+        print(f"The lower bound for this solution instance was {round(A_c_lower_bound / 1000000)}")
 
         with open(order_filename, mode='w', newline='') as file:
             writer = csv.DictWriter(file, fieldnames=["Stock_Length", "Stock_Width", "Panels", "Items", "Columns"])
@@ -404,10 +337,10 @@ def optimise(order_number, scenario_id, _n_s_max):
             result = {"Order": order_number,
                       "Scenario": scenario_id,
                       "n_s_max": n_s_max,
-                      "Solution": round(model.ObjVal/1000000),
+                      "Solution": round(model.ObjVal / 1000000),
                       "Gap": round(model.MIPGap, 2),
                       "Time": round(model.Runtime),
-                      "A_c": round(A_c_lower_bound/1000000)}
+                      "A_c": round(A_c_lower_bound / 1000000)}
             writer.writerow(result)
 
     else:
