@@ -2,23 +2,27 @@ import csv
 import pandas as pd
 import numpy as np
 
-# Read the stock data from the CSV file
+# Order to be verified for feasibility.
+order_number = 24
+scenario_number = 3
+n_s_max = 2
+
+
 def read_solution_from_csv(file_path):
     solution = []
     with open(file_path, mode='r') as file:
         csv_reader = csv.reader(file)
-        next(csv_reader)  # Skip header if it exists
+        next(csv_reader)
         for row in csv_reader:
             stock_length = int(row[0])
             stock_width = int(row[1])
             panels = int(row[2])
-            items_list = eval(row[3])  # Assuming items are in list form
-            columns = eval(row[4])  # Assuming columns are in tuple form
+            items_list = eval(row[3])
+            columns = eval(row[4])
             solution.append((stock_length, stock_width, panels, items_list, columns))
     return solution
 
 
-# Check constraints
 def check_constraints(items, solution):
     error = False
     item_dict = {i+1: {'width': item[0], 'length': item[1], 'demand': item[2]} for i, item in
@@ -48,10 +52,6 @@ def check_constraints(items, solution):
     return error
 
 
-order_number = 24
-scenario_number = 3
-n_s_max = 2
-
 order_sheet = pd.read_excel(f"./Data/Input_data.ods",
                             engine="odf",
                             sheet_name=f'O{order_number}',
@@ -59,15 +59,13 @@ order_sheet = pd.read_excel(f"./Data/Input_data.ods",
                             )
 
 # Items information
-item_widths = order_sheet['Width']  # Individual item width
-item_lengths = order_sheet['Length']  # Individual item Length
-item_demands = order_sheet['Demand']  # Individual item Demand
+item_widths = order_sheet['Width']
+item_lengths = order_sheet['Length']
+item_demands = order_sheet['Demand']
 items = [[int(item_widths[i]), int(item_lengths[i]), int(item_demands[i])] for i in range(len(item_widths))]
 
-# Path to the CSV file
 csv_file_path = f'./Output/order_{order_number}_{scenario_number}_{n_s_max}.csv'
 
-# Read the solution
 solution = read_solution_from_csv(csv_file_path)
 
 # Check constraints
