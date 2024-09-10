@@ -256,6 +256,13 @@ def optimise(order_number, scenario_id, _n_s_max):
         name="length_bound_7"
     )
 
+    # 12. Ensure a stock size width is used iff used at least one time.
+    model.addConstrs(
+        (gp.quicksum(beta_j[idx, n] for n in range(J[1])) >= delta_w[idx]
+         for idx in range(J[0])),
+        name="link_delta_beta"
+    )
+
     # 12b.
     model.addConstrs(
         (beta_j[idx, n] <= delta_w[idx]
