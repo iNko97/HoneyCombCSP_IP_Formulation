@@ -3,9 +3,9 @@ import pandas as pd
 import numpy as np
 
 # Order to be verified for feasibility.
-order_number = 7
-scenario_number = 1
-n_s_max = 1
+order_number = 10
+scenario_number = 3
+n_s_max = 2
 
 
 def read_solution_from_csv(file_path):
@@ -25,11 +25,14 @@ def read_solution_from_csv(file_path):
 
 def check_constraints(items, solution):
     error = False
+    total_area = 0
     item_dict = {i+1: {'width': item[0], 'length': item[1], 'demand': item[2]} for i, item in
                  enumerate(items)}
 
     for stock_width, stock_length, panels, items_list, columns in solution:
         total_width = 0
+        total_area += stock_width * stock_length * panels
+
         for item_index, column_count in zip(items_list, columns):
             item_width = item_dict[item_index]['width']
             item_length = item_dict[item_index]['length']
@@ -49,7 +52,7 @@ def check_constraints(items, solution):
             error = True
         else:
             print(f"    Width OK for {items_list}, {columns}, for {total_width} <= {stock_width}")
-    return error
+    return error, total_area
 
 
 order_sheet = pd.read_excel(f"./Data/Input_data.ods",
@@ -67,8 +70,9 @@ items = [[int(item_widths[i]), int(item_lengths[i]), int(item_demands[i])] for i
 csv_file_path = f'./Output/order_{order_number}_{scenario_number}_{n_s_max}.csv'
 
 solution = read_solution_from_csv(csv_file_path)
+errors, area = check_constraints(items, solution)
 
 # Check constraints
-print(f"Errors? {check_constraints(items, solution)}")
+print(f"Errors? {errors}, total area: {area}")
 
 

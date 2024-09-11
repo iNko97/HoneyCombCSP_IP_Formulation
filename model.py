@@ -3,6 +3,7 @@ import os
 import gurobipy as gp
 from gurobipy import GRB
 
+from random import shuffle
 from order import Order
 from collections import Counter
 
@@ -24,7 +25,7 @@ def optimise(order_number, scenario_id, _n_s_max):
     model.setParam(GRB.Param.Presolve, 2)
     model.setParam(GRB.Param.Cuts, 3)
     model.setParam(GRB.Param.Method, 2)
-    model.setParam('NumericFocus', 2)
+    model.setParam('NumericFocus', 3)
 
     # Factory settings
     order = Order(path, (scenario_id, _n_s_max), order_number)
@@ -72,8 +73,9 @@ def optimise(order_number, scenario_id, _n_s_max):
     for idx in range(J[0]):
         for c in C_j[idx]:
             k_to_be_removed = []
+            k_min = min(K_cj[c, idx])
             for k in K_cj[c, idx]:
-                if k == min(K_cj[c, idx]):
+                if k == k_min:
                     continue
                 k_prev = max((x for x in K_cj[c, idx] if x < k))
                 if lmin_cjk[c, idx, k_prev] == lmin_cjk[c, idx, k]:
@@ -111,11 +113,15 @@ def optimise(order_number, scenario_id, _n_s_max):
     # Get column distribution data for solution parsing.
     n_c_asterisk = order.best_nc
 
+    # L_j matrix of available lengths.
+    print("Generating L_j")
     stock_lengths = {}
     for idx in range(J[0]):
         stock_lengths[idx] = list(Counter(lmin_cjk[c, idx, k]
-                                    for c in C_j[idx]
-                                    for k in K_cj[(c, idx)]))
+                                         for c in C_j[idx]
+                                         for k in K_cj[(c, idx)]))
+        shuffle(stock_lengths[idx])
+    print(stock_lengths)
 
     print("Initialising model.")
     # DECISION VARIABLES
@@ -184,7 +190,6 @@ def optimise(order_number, scenario_id, _n_s_max):
             for n in range(J[1])
             for c in C_j[idx]
             for k in K_cj[(c, idx)]
-
         ),
         GRB.MINIMIZE
     )
@@ -201,9 +206,9 @@ def optimise(order_number, scenario_id, _n_s_max):
         name='link_alpha_a'
     )
 
-    # h. Ensure that each item is allocated to a stock size
+    # New. Ensure that each stock size is allocated a length if it's allocated.
     model.addConstrs(
-        (gp.quicksum(xi_jl[idx, n, l] for l in range(len(stock_lengths[idx]))) == 1
+        (gp.quicksum(xi_jl[idx, n, l] for l in range(len(stock_lengths[idx]))) <= beta_j[idx, n]
          for idx in range(J[0])
          for n in range(J[1])),
         name='link_xi_jl'
@@ -220,8 +225,7 @@ def optimise(order_number, scenario_id, _n_s_max):
 
     # 4b.
     model.addConstrs(
-        (gp.quicksum(alpha_cj[c, idx, n]
-                     for c in C_j[idx]) >= beta_j[idx, n]
+        (gp.quicksum(alpha_cj[c, idx, n] for c in C_j[idx]) >= beta_j[idx, n]
          for idx in range(J[0])
          for n in range(J[1])),
         name="link_beta_alpha"
@@ -246,7 +250,7 @@ def optimise(order_number, scenario_id, _n_s_max):
         name="link_gamma_alpha"
     )
 
-    # 7. Ensure y_cjk and xi_jl constraints
+    # 7. Ensure \gamma_cjk and xi_jl constraints
     model.addConstrs(
         (gp.quicksum(lmin_cjk[(c, idx, k)] * gamma_cjk[c, idx, n, k] for k in K_cj[(c, idx)]) <=
          gp.quicksum(xi_jl[idx, n, l] * stock_lengths[idx][l] for l in range(len(stock_lengths[idx])))
@@ -285,13 +289,11 @@ def optimise(order_number, scenario_id, _n_s_max):
         name="beta_symmetry"
     )
 
-    # 22. Symmetry breaking constraints for \x_j
+    # 22. Symmetry breaking constraints for \xi_jl
     model.addConstrs(
-        (gp.quicksum(l * xi_jl[idx, n, l] for l in range(len(stock_lengths[idx]))) -
-         gp.quicksum(l_prime * xi_jl[idx, n + 1, l_prime] for l_prime in range(len(stock_lengths[idx])))
-         >= 1
+        (gp.quicksum(xi_jl[idx, n, l] for n in range(J[1])) <= 1
          for idx in range(J[0])
-         for n in range(J[1] - 1)),
+         for l in range(len(stock_lengths[idx]))),
         name="x_symmetry"
     )
 
@@ -306,25 +308,26 @@ def optimise(order_number, scenario_id, _n_s_max):
             print("Time limit reached or interrupted. Best solution found:")
         for idx in range(J[0]):
             for n in range(J[1]):
-                for l in range(len(stock_lengths[idx])):
-                    if beta_j[idx, n].x > 0.5 and xi_jl[idx, n, l].x > 0.5:
-                        print(f"Stock size {idx}, {n}: width = {W[idx]}, length = {stock_lengths[idx][l]}")
-                        for c in C_j[idx]:
-                            if alpha_cj[c, idx, n].x > 0.5:
-                                binary_rep = f"{c:0{len(I)}b}"
-                                indexes = [i + 1 for i, bit in enumerate(binary_rep) if bit == '1']
-                                A_c_lower_bound += order.A_c[c]
-                                for k in K_cj[(c, idx)]:
-                                    if gamma_cjk[c, idx, n, k].x > 0.5:
-                                        print(f"    {k} panels of items {indexes}")
-                                        print(f"        with respectively {n_c_asterisk[(c, idx, k)]} columns.")
-                                        item_allocations.append({
-                                            "Stock_Length": W[idx],
-                                            "Stock_Width": stock_lengths[idx][l],
-                                            "Panels": k,
-                                            "Items": indexes,
-                                            "Columns": n_c_asterisk[(c, idx, k)]
-                                        })
+                if beta_j[idx, n].x > 0.5:
+                    for l in range(len(stock_lengths[idx])):
+                        if xi_jl[idx, n, l].x > 0.5:
+                            print(f"Stock size {idx}, {n}: width = {W[idx]}, length = {stock_lengths[idx][l]}")
+                            for c in C_j[idx]:
+                                if alpha_cj[c, idx, n].x > 0.5:
+                                    binary_rep = f"{c:0{len(I)}b}"
+                                    indexes = [i + 1 for i, bit in enumerate(binary_rep) if bit == '1']
+                                    A_c_lower_bound += order.A_c[c]
+                                    for k in K_cj[(c, idx)]:
+                                        if gamma_cjk[c, idx, n, k].x > 0.5:
+                                            print(f"    {k} panels of items {indexes}")
+                                            print(f"        with respectively {n_c_asterisk[(c, idx, k)]} columns.")
+                                            item_allocations.append({
+                                                "Stock_Length": W[idx],
+                                                "Stock_Width": stock_lengths[idx][l],
+                                                "Panels": k,
+                                                "Items": indexes,
+                                                "Columns": n_c_asterisk[(c, idx, k)]
+                                            })
         print(f"The lower bound for this solution instance was {round(A_c_lower_bound / 1000000)}")
 
         with open(order_filename, mode='w', newline='') as file:
