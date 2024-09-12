@@ -20,12 +20,12 @@ def optimise(order_number, scenario_id, _n_s_max):
     # Gurobi Parameters
     model = gp.Model("2D_Cutting_Stock")
     model.setParam(GRB.Param.TimeLimit, 1800)
+    model.setParam(GRB.Param.MIPGap, 0.000001)
     model.setParam(GRB.Param.MIPFocus, 2)
-    model.setParam(GRB.Param.MIPGap, 0)
-    model.setParam(GRB.Param.Presolve, 2)
-    model.setParam(GRB.Param.Cuts, 3)
-    model.setParam(GRB.Param.Method, 2)
-    model.setParam('NumericFocus', 3)
+    # model.setParam(GRB.Param.Presolve, 2)
+    # model.setParam(GRB.Param.Cuts, 3)
+    # model.setParam(GRB.Param.Method, 2)
+    model.setParam('NumericFocus', 2)
 
     # Factory settings
     order = Order(path, (scenario_id, _n_s_max), order_number)
@@ -56,8 +56,6 @@ def optimise(order_number, scenario_id, _n_s_max):
     lmin_cjk = {}
     # dictionary with tuple (c, idx_j) : list(range(kmin_cj, ..., kmax_cj))
     K_cj = {}
-    #  dictionary with (idx) : Delta_j, that is the minimum difference between two lmin_cjk
-    Delta_j = {}
 
     for idx in range(J[0]):
         for c in C_j[idx]:
@@ -117,11 +115,11 @@ def optimise(order_number, scenario_id, _n_s_max):
     print("Generating L_j")
     stock_lengths = {}
     for idx in range(J[0]):
-        stock_lengths[idx] = list(Counter(lmin_cjk[c, idx, k]
-                                         for c in C_j[idx]
-                                         for k in K_cj[(c, idx)]))
-        shuffle(stock_lengths[idx])
-    print(stock_lengths)
+        stock_lengths[idx] = {}
+        lista = sorted(list(Counter(lmin_cjk[c, idx, k] for c in C_j[idx] for k in K_cj[(c, idx)])))
+        for i, length in enumerate(lista):
+            stock_lengths[idx][i] = length
+        print(stock_lengths[idx], len(stock_lengths[idx]))
 
     print("Initialising model.")
     # DECISION VARIABLES
@@ -169,7 +167,7 @@ def optimise(order_number, scenario_id, _n_s_max):
         name="delta_w"
     )
 
-    # \xi_jl length of stock size j, for j \in J
+    # \xi_jl index of l in stock_lengths[idx] length of stock size j, for j \in J
     xi_jl = model.addVars(
         [(idx, n, l)
          for idx in range(J[0])
@@ -184,8 +182,9 @@ def optimise(order_number, scenario_id, _n_s_max):
     # 2. Minimise the total area of the material used
     model.setObjective(
         gp.quicksum(
-            W[idx] * k * gp.quicksum(xi_jl[idx, n, l] * stock_lengths[idx][l]
-                                     for l in range(len(stock_lengths[idx]))) * gamma_cjk[c, idx, n, k]
+            W[idx] *
+            k * gamma_cjk[c, idx, n, k] *
+            gp.quicksum(xi_jl[idx, n, l] * stock_lengths[idx][l] for l in range(len(stock_lengths[idx])))
             for idx in range(J[0])
             for n in range(J[1])
             for c in C_j[idx]
@@ -206,9 +205,9 @@ def optimise(order_number, scenario_id, _n_s_max):
         name='link_alpha_a'
     )
 
-    # New. Ensure that each stock size is allocated a length if it's allocated.
+    # New. Ensure that each stock size is allocated a length iff it's allocated.
     model.addConstrs(
-        (gp.quicksum(xi_jl[idx, n, l] for l in range(len(stock_lengths[idx]))) <= beta_j[idx, n]
+        (gp.quicksum(xi_jl[idx, n, l] for l in range(len(stock_lengths[idx]))) == beta_j[idx, n]
          for idx in range(J[0])
          for n in range(J[1])),
         name='link_xi_jl'
@@ -289,13 +288,23 @@ def optimise(order_number, scenario_id, _n_s_max):
         name="beta_symmetry"
     )
 
-    # 22. Symmetry breaking constraints for \xi_jl
+    # 22. Symmetry breaking constraints for \xi_jl, we choose bigger indexes first
     model.addConstrs(
-        (gp.quicksum(xi_jl[idx, n, l] for n in range(J[1])) <= 1
+        (gp.quicksum((l+1) * xi_jl[idx, n, l] for l in range(len(stock_lengths[idx]))) -
+         gp.quicksum((l+1) * xi_jl[idx, n+1, l] for l in range(len(stock_lengths[idx])))
+         >= beta_j[idx, n+1]
          for idx in range(J[0])
-         for l in range(len(stock_lengths[idx]))),
-        name="x_symmetry"
+         for n in range(J[1] - 1)),
+        name="xi_symmetry"
     )
+
+    # 23. Symmetry breaking st.
+    # model.addConstrs(
+    #     (gp.quicksum(xi_jl[idx, n, l] for n in range(J[1])) <= 1
+    #      for idx in range(J[0])
+    #      for l in range(len(stock_lengths[idx]))),
+    #     name="xi_symmetry"
+    # )
 
     # Optimize the model
     model.optimize()
