@@ -1,7 +1,7 @@
 from model import optimise
 
 order_numbers = [7, 8, 10, 17]
-scenario_ids = [3, 5, 6]
+scenario_ids = [4, 5, 6]
 n_s_max_ids = [1, 2]
 
 for order_number in order_numbers:
