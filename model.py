@@ -11,11 +11,10 @@ from collections import Counter
 def optimise(order_number, scenario_id, _n_s_max):
     # Program Parameters
     path = "./Data/Input_data.ods"
-    order_filename = f"./Output/order_{order_number}_{scenario_id}_{_n_s_max}.csv"
-    results_filename = f"./Output/results.csv"
+    order_filename = f"./Output/model/order_{order_number}_{scenario_id}_{_n_s_max}.csv"
+    results_filename = f"./Output/model/results.csv"
     write_header = not os.path.exists(results_filename)
     item_allocations = []
-    A_c_lower_bound = 0
 
     # Gurobi Parameters
     model = gp.Model("2D_Cutting_Stock")
@@ -107,6 +106,53 @@ def optimise(order_number, scenario_id, _n_s_max):
         current_product = k * W[idx] * _lmin_cjk
         A_c[c] = min(A_c.get(c, current_product), current_product)
     order.A_c = A_c
+
+    # A_c lower bound for the area of material used
+    print("Calculating A_c lower bounds.")
+    A_c = {}
+    lower_bound = 0
+
+    ac_model = gp.Model("Unbound_Cutting_Stock")
+    for (c, idx, k), _lmin_cjk in lmin_cjk.items():
+        current_product = k * W[idx] * _lmin_cjk
+        A_c[c] = min(A_c.get(c, current_product), current_product)
+    order.A_c = A_c
+
+    print("Initialising Ac model.")
+
+    # \alpha_{c} 1 if the subset of item types I_c is assigned to stock size j, 0 otherwise for j \in J, c \in C
+    ac_alpha_c = ac_model.addVars(
+        [c
+         for c in C_j[idx]
+         ],
+        vtype=GRB.BINARY,
+        name="ac_alpha_c"
+    )
+
+    #Objective for A_c model
+    ac_model.setObjective(
+        gp.quicksum(
+            A_c[c] * ac_alpha_c[c]
+            for c in C_j[idx]
+        ),
+        GRB.MINIMIZE
+    )
+
+    #s.t. for A_c model
+    ac_model.addConstrs(
+        (gp.quicksum(ac_alpha_c[c] * a_ic[(i, c)]
+                     for c in C_j[idx]) == 1
+         for i in range(len(I))),
+        name='ac_link_alpha_a'
+    )
+
+    ac_model.optimize()
+
+    # Extract the solution
+    if ac_model.status == GRB.OPTIMAL:
+        print(f"A_c Done! {ac_model.ObjVal}")
+        lower_bound = ac_model.ObjVal
+
 
     # Get column distribution data for solution parsing.
     n_c_asterisk = order.best_nc
@@ -325,7 +371,6 @@ def optimise(order_number, scenario_id, _n_s_max):
                                 if alpha_cj[c, idx, n].x > 0.5:
                                     binary_rep = f"{c:0{len(I)}b}"
                                     indexes = [i + 1 for i, bit in enumerate(binary_rep) if bit == '1']
-                                    A_c_lower_bound += order.A_c[c]
                                     for k in K_cj[(c, idx)]:
                                         if gamma_cjk[c, idx, n, k].x > 0.5:
                                             print(f"    {k} panels of items {indexes}")
@@ -337,7 +382,7 @@ def optimise(order_number, scenario_id, _n_s_max):
                                                 "Items": indexes,
                                                 "Columns": n_c_asterisk[(c, idx, k)]
                                             })
-        print(f"The lower bound for this solution instance was {round(A_c_lower_bound / 1000000)}")
+        print(f"The lower bound for this solution instance was {round(lower_bound / 1000000)}")
 
         with open(order_filename, mode='w', newline='') as file:
             writer = csv.DictWriter(file, fieldnames=["Stock_Length", "Stock_Width", "Panels", "Items", "Columns"])
@@ -356,9 +401,9 @@ def optimise(order_number, scenario_id, _n_s_max):
                       "Solution": round(model.ObjVal / 1000000),
                       "Gap": round(model.MIPGap, 2),
                       "Time": round(model.Runtime),
-                      "A_c": round(A_c_lower_bound / 1000000)}
+                      "A_c": round(lower_bound / 1000000)}
             writer.writerow(result)
 
     else:
         print("No solution found.")
-    return model, A_c_lower_bound
+    return model, lower_bound
